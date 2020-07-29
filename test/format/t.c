@@ -270,16 +270,19 @@ main(int argc, char *argv[])
             config_final();
             wts_open(g.home, &g.wts_conn, &g.wts_session, true);
             set_oldest_timestamp();
+            timestamp_init();
         } else {
             wts_create(g.home);
             config_final();
             wts_open(g.home, &g.wts_conn, &g.wts_session, true);
+            timestamp_init();
+
             trace_init();
 
             TIMED_MAJOR_OP(wts_load()); /* Load and verify initial records */
-            TIMED_MAJOR_OP(wts_verify(g.wts_conn, "post-bulk verify"));
         }
 
+        TIMED_MAJOR_OP(wts_verify(g.wts_conn, "verify"));
         TIMED_MAJOR_OP(wts_read_scan());
 
         wts_checkpoints();
