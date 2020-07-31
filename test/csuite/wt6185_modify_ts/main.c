@@ -33,7 +33,7 @@ extern char *__wt_optarg;
 
 #define KEYNO 50
 #define MAX_MODIFY_ENTRIES 5
-#define MAX_OPS 25 * 100
+#define MAX_OPS 25
 #define RUNS 250
 #define VALUE_SIZE 80
 #define MAX_KEYS 100
@@ -48,7 +48,7 @@ static struct {
     } ops[MAX_OPS];
 } list[MAX_KEYS];
 
-static char *tlist[MAX_OPS * 100]; /* List of traced operations. */
+static char *tlist[MAX_OPS * 100 * MAX_KEYS]; /* List of traced operations. */
 static u_int tnext;
 
 static uint64_t ts; /* Current timestamp. */
