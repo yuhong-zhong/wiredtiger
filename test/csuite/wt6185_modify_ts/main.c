@@ -31,7 +31,6 @@
 extern int __wt_optind;
 extern char *__wt_optarg;
 
-#define KEYNO 50
 #define MAX_MODIFY_ENTRIES 5
 #define MAX_OPS 25
 #define RUNS 250
@@ -289,7 +288,7 @@ main(int argc, char *argv[])
     WT_CONNECTION *conn;
     WT_CURSOR *c;
     WT_SESSION *session;
-    u_int i, j, k;
+    u_int i, j, k, test_index;
     int ch;
     char path[1024], value[VALUE_SIZE];
     const char *home, *v;
@@ -346,11 +345,12 @@ main(int argc, char *argv[])
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     testutil_check(session->create(session, "file:xxx", NULL));
     testutil_check(session->open_cursor(session, "file:xxx", NULL, NULL, &c));
-    testutil_check(__wt_snprintf(key, sizeof(key), "%010d.key", KEYNO));
+    test_index = mmrand(0, MAX_KEYS - 1);
+    testutil_check(__wt_snprintf(key, sizeof(key), "%010d.key", test_index));
     c->set_key(c, key);
     testutil_check(c->search(c));
     testutil_check(c->get_value(c, &v));
-    SET_VALUE(KEYNO, value);
+    SET_VALUE(test_index, value);
     testutil_assert(strcmp(v, value) == 0);
 
     testutil_check(conn->set_timestamp(conn, "oldest_timestamp=1"));
