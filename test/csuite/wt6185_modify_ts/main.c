@@ -33,17 +33,20 @@ extern char *__wt_optarg;
 
 #define KEYNO 50
 #define MAX_MODIFY_ENTRIES 5
-#define MAX_OPS 25
+#define MAX_OPS 25 * 100
 #define RUNS 250
 #define VALUE_SIZE 80
+#define MAX_KEYS 100
 
 static WT_RAND_STATE rnd;
 
-static struct { /* List of repeatable operations. */
-    uint64_t ts;
-    char *v;
-} list[MAX_OPS];
-static u_int lnext;
+static struct {
+    u_int lnext;
+    struct { /* List of repeatable operations. */
+        uint64_t ts;
+        char *v;
+    } ops[MAX_OPS];
+} list[MAX_KEYS];
 
 static char *tlist[MAX_OPS * 100]; /* List of traced operations. */
 static u_int tnext;
@@ -84,10 +87,11 @@ usage(void)
 static void
 cleanup(void)
 {
-    u_int i;
+    u_int i, key;
 
-    for (i = 0; i < WT_ELEMENTS(list); ++i)
-        free(list[i].v);
+    for (key = 0; key < MAX_KEYS; ++key)
+        for (i = 0; i < WT_ELEMENTS(list[key].ops); ++i)
+            free(list[key].ops[i].v);
     for (i = 0; i < WT_ELEMENTS(tlist); ++i)
         free(tlist[i]);
 }
@@ -163,7 +167,7 @@ modify_build(WT_MODIFY *entries, int *nentriesp, int tag)
  *     Make two modifications to a record inside a single transaction.
  */
 static void
-modify(WT_SESSION *session, WT_CURSOR *c)
+modify(int k, WT_SESSION *session, WT_CURSOR *c)
 {
     WT_MODIFY entries[MAX_MODIFY_ENTRIES];
     int cnt, loop, nentries;
@@ -190,8 +194,8 @@ modify(WT_SESSION *session, WT_CURSOR *c)
         c->set_key(c, key);
         testutil_check(c->search(c));
         testutil_check(c->get_value(c, &v));
-        free(list[lnext].v);
-        list[lnext].v = dstrdup(v);
+        free(list[k].ops[list[k].lnext].v);
+        list[k].ops[list[k].lnext].v = dstrdup(v);
 
         trace("modify read-ts=%" PRIu64 ", commit-ts=%" PRIu64, ts, ts + 1);
         trace("returned {%s}", v);
@@ -200,8 +204,8 @@ modify(WT_SESSION *session, WT_CURSOR *c)
         testutil_check(session->timestamp_transaction(session, tmp));
         testutil_check(session->commit_transaction(session, NULL));
 
-        list[lnext].ts = ts + 1; /* Reread at commit timestamp */
-        ++lnext;
+        list[k].ops[list[k].lnext].ts = ts + 1; /* Reread at commit timestamp */
+        ++list[k].lnext;
     } else
         testutil_check(session->rollback_transaction(session, NULL));
 
@@ -213,25 +217,26 @@ modify(WT_SESSION *session, WT_CURSOR *c)
  *     Reread all previously committed modifications.
  */
 static void
-repeat(WT_SESSION *session, WT_CURSOR *c)
+repeat(int k, WT_SESSION *session, WT_CURSOR *c)
 {
     u_int i;
     const char *v;
 
-    for (i = 0; i < lnext; ++i) {
+    for (i = 0; i < list[k].lnext; ++i) {
         testutil_check(session->begin_transaction(session, "isolation=snapshot"));
-        testutil_check(__wt_snprintf(tmp, sizeof(tmp), "read_timestamp=%" PRIx64, list[i].ts));
+        testutil_check(
+          __wt_snprintf(tmp, sizeof(tmp), "read_timestamp=%" PRIx64, list[k].ops[i].ts));
         testutil_check(session->timestamp_transaction(session, tmp));
 
         c->set_key(c, key);
         testutil_check(c->search(c));
         testutil_check(c->get_value(c, &v));
 
-        trace("repeat ts=%" PRIu64, list[i].ts);
-        trace("expected {%s}", list[i].v);
+        trace("repeat ts=%" PRIu64, list[k].ops[i].ts);
+        trace("expected {%s}", list[k].ops[i].v);
         trace("   found {%s}", v);
 
-        testutil_assert(strcmp(v, list[i].v) == 0);
+        testutil_assert(strcmp(v, list[k].ops[i].v) == 0);
 
         testutil_check(session->rollback_transaction(session, NULL));
     }
@@ -284,7 +289,7 @@ main(int argc, char *argv[])
     WT_CONNECTION *conn;
     WT_CURSOR *c;
     WT_SESSION *session;
-    u_int i, j;
+    u_int i, j, k;
     int ch;
     char path[1024], value[VALUE_SIZE];
     const char *home, *v;
@@ -355,21 +360,27 @@ main(int argc, char *argv[])
      * all previous committed transactions, then optional page evictions and checkpoints.
      */
     for (i = 0, ts = 1; i < RUNS; ++i) {
-        lnext = tnext = 0;
+        memset(list, 0x0, sizeof(list));
+        tnext = 0;
         trace("run %u, seed %" PRIu64, i, rnd.v);
 
         for (j = mmrand(10, MAX_OPS); j > 0; --j) {
-            modify(session, c);
-            repeat(session, c);
+            for (k = 0; k < MAX_KEYS; ++k) {
+                /* Set the key. */
+                testutil_check(__wt_snprintf(key, sizeof(key), "%010d.key", k));
 
-            /* 20% chance we evict the page. */
-            if (!no_eviction && mmrand(1, 10) > 8)
-                evict(c);
+                modify(k, session, c);
+                repeat(k, session, c);
 
-            /* 80% chance we checkpoint. */
-            if (!no_checkpoint && mmrand(1, 10) > 8) {
-                trace("%s", "checkpoint");
-                testutil_check(session->checkpoint(session, NULL));
+                /* 20% chance we evict the page. */
+                if (!no_eviction && mmrand(1, 10) > 8)
+                    evict(c);
+
+                /* 80% chance we checkpoint. */
+                if (!no_checkpoint && mmrand(1, 10) > 8) {
+                    trace("%s", "checkpoint");
+                    testutil_check(session->checkpoint(session, NULL));
+                }
             }
         }
         testutil_assert(write(STDOUT_FILENO, ".", 1) == 1);
