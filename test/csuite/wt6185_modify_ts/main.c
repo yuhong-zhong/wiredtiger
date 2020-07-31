@@ -34,7 +34,7 @@ extern char *__wt_optarg;
 #define MAX_MODIFY_ENTRIES 5
 #define MAX_OPS 25
 #define RUNS 250
-#define VALUE_SIZE 80
+#define VALUE_SIZE 1024
 #define MAX_KEYS 100
 
 static WT_RAND_STATE rnd;
