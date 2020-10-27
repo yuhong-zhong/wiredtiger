@@ -358,7 +358,7 @@ __posix_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
             WT_RET_MSG(
               session, WT_ERROR, "%s: handle-write: io_uring: failed to submit", file_handle->name);
     }
-
+    io_uring_unregister_files(&pfh->ring);
     if (pfh->mmap_file_mappable && pfh->mmap_buf != NULL)
         __wt_unmap_file(file_handle, wt_session);
 
@@ -644,6 +644,8 @@ __posix_file_write_io_uring_complete(WT_SESSION_IMPL *session, WT_FILE_HANDLE_PO
             WT_RET_MSG(session, complete->res, "%s: handle-write: io_uring: system call failed",
               pfh->iface.name);
 
+        __wt_free(session, data);
+
         /* Mark this completion as seen */
         io_uring_cqe_seen(&pfh->ring, complete);
         pfh->ncomplete++;
@@ -668,6 +670,7 @@ __posix_file_write(
     size_t chunk;
     ssize_t nw;
     const uint8_t *addr;
+    void *image;
 
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
@@ -694,12 +697,13 @@ __posix_file_write(
                       file_handle->name);
                 sqe = io_uring_get_sqe(&pfh->ring);
             }
-            iov.iov_base = (void *)addr;
+            WT_RET(__wt_memdup(session, addr, chunk, &image));
+            iov.iov_base = image;
             iov.iov_len = chunk;
             nw = chunk;
 
             io_uring_prep_writev(sqe, pfh->fd, &iov, 1, offset);
-            io_uring_sqe_set_data(sqe, (void *)addr);
+            io_uring_sqe_set_data(sqe, image);
             pfh->nsubmit++;
         } else {
             if (pfh->nsubmit - pfh->ncomplete > 0) {
@@ -1003,6 +1007,7 @@ directory_open:
     pfh->nsubmit = 0;
     pfh->ncomplete = 0;
 
+    WT_ERR(io_uring_register_files(&pfh->ring, &pfh->fd, 1));
     *file_handlep = file_handle;
 
     return (0);
