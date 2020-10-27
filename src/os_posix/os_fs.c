@@ -28,6 +28,8 @@
 
 #include "wt_internal.h"
 
+#define WT_IO_URING_ENTRIES 64
+
 /*
  * __posix_sync --
  *     Underlying support function to flush a file descriptor. Fsync calls (or fsync-style calls,
@@ -357,6 +359,8 @@ __posix_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
         if (ret != 0)
             __wt_err(session, ret, "%s: handle-close: close", file_handle->name);
     }
+
+    io_uring_queue_exit(&pfh->ring);
 
     __wt_free(session, file_handle->name);
     __wt_free(session, pfh);
@@ -900,6 +904,8 @@ directory_open:
         file_handle->fh_write = __posix_file_write_mmap;
     else
         file_handle->fh_write = __posix_file_write;
+
+    WT_ERR(io_uring_queue_init(WT_IO_URING_ENTRIES, &pfh->ring, 0));
 
     *file_handlep = file_handle;
 
