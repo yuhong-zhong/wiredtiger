@@ -142,6 +142,8 @@ struct __wt_file_handle_posix {
 
     /* io_uring support */
     struct io_uring ring;
+    uint64_t nsubmit;
+    uint64_t ncomplete;
 
     /* The memory buffer and variables if we use mmap for I/O */
     uint8_t *mmap_buf;
