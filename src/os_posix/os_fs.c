@@ -30,6 +30,7 @@
 
 #define WT_IO_URING_ENTRIES 64
 
+static int __posix_io_uring_done(WT_FILE_HANDLE *, WT_SESSION *, bool , bool*);
 /*
  * __posix_sync --
  *     Underlying support function to flush a file descriptor. Fsync calls (or fsync-style calls,
@@ -344,6 +345,7 @@ __posix_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
     WT_DECL_RET;
     WT_FILE_HANDLE_POSIX *pfh;
     WT_SESSION_IMPL *session;
+    bool io_uring_done;
 
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
@@ -359,7 +361,10 @@ __posix_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
         if (ret != 0)
             __wt_err(session, ret, "%s: handle-close: close", file_handle->name);
     }
-
+    WT_RET(__posix_io_uring_done(file_handle, wt_session, false, &io_uring_done));
+    if (!io_uring_done)
+        __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-close: fd=%d WARNING - IO still pending", 
+                file_handle->name, pfh->fd); 
     io_uring_queue_exit(&pfh->ring);
 
     __wt_free(session, file_handle->name);
@@ -929,6 +934,62 @@ __posix_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session)
 
     __wt_free(session, file_system);
     return (0);
+}
+
+/*
+ * __posix_file_io_uring_done --
+ *     Sets result as true if all io_uring requests have finished and false otherwise. If wait is 
+ *     set, the call will block until all io_uring requests are done. Returns an error if something 
+ *     goes wrong while checking the status. Note that result will be set false in case there is an 
+ *     error to be returned.
+ */
+static int
+__posix_io_uring_done(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
+    bool wait, bool* result)
+{
+    struct io_uring_cqe* cqe;
+    WT_DECL_RET;
+    WT_FILE_HANDLE_POSIX *pfh;
+    WT_SESSION_IMPL *session;
+    unsigned n_requests;
+    unsigned req_finished;
+
+    session = (WT_SESSION_IMPL *)wt_session;
+    pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
+
+    WT_UNUSED(session);
+
+    n_requests = pfh->io_uring_requests;
+    /* Fast path: If there are no requests pending, return now. */
+    if (n_requests == 0) {
+        *result = true;
+        return 0;
+    }
+
+    if (wait) {
+        WT_ERR(io_uring_wait_cqe_nr(&pfh->ring, &cqe, n_requests));
+        *result = true;
+    }
+    else {
+        req_finished = io_uring_peek_batch_cqe(&pfh->ring, &cqe, n_requests);
+
+        n_requests -= req_finished;
+        if (n_requests > 0) {
+            pfh->io_uring_requests = n_requests;
+            *result = false;
+        }
+        else
+            *result = true;
+    }
+
+err:
+    if (cqe)
+        io_uring_cqe_seen(&pfh->ring, cqe);
+    if (ret)
+        *result = false;
+    if (*result)
+        pfh->io_uring_requests = 0;
+    return ret;
 }
 
 /*
