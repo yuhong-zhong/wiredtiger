@@ -31,6 +31,9 @@
 #define WT_IO_URING_ENTRIES 64
 
 static int __posix_io_uring_done(WT_FILE_HANDLE *, WT_SESSION *, bool , bool*);
+static int __posix_file_write_io_uring_complete(
+  WT_SESSION_IMPL *session, WT_FILE_HANDLE_POSIX *pfh);
+
 /*
  * __posix_sync --
  *     Underlying support function to flush a file descriptor. Fsync calls (or fsync-style calls,
@@ -352,6 +355,12 @@ __posix_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 
     __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-close: fd=%d", file_handle->name, pfh->fd);
 
+    if (pfh->nsubmit - pfh->ncomplete > 0) {
+        if (__posix_file_write_io_uring_complete(session, pfh) != 0)
+            WT_RET_MSG(
+              session, WT_ERROR, "%s: handle-write: io_uring: failed to submit", file_handle->name);
+    }
+    io_uring_unregister_files(&pfh->ring);
     if (pfh->mmap_file_mappable && pfh->mmap_buf != NULL)
         __wt_unmap_file(file_handle, wt_session);
 
@@ -430,6 +439,12 @@ __posix_file_read(
       !pfh->direct_io || S2C(session)->buffer_alignment == 0 ||
         (!((uintptr_t)buf & (uintptr_t)(S2C(session)->buffer_alignment - 1)) &&
           len >= S2C(session)->buffer_alignment && len % S2C(session)->buffer_alignment == 0));
+
+    if (pfh->nsubmit - pfh->ncomplete > 0) {
+        if (__posix_file_write_io_uring_complete(session, pfh) != 0)
+            WT_RET_MSG(
+              session, WT_ERROR, "%s: handle-write: io_uring: failed to submit", file_handle->name);
+    }
 
     /* Break reads larger than 1GB into 1GB chunks. */
     for (addr = buf; len > 0; addr += nr, len -= (size_t)nr, offset += nr) {
@@ -520,13 +535,21 @@ __posix_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t 
 static int
 __posix_file_sync(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 {
+    WT_BTREE *btree;
     WT_FILE_HANDLE_POSIX *pfh;
     WT_SESSION_IMPL *session;
+    int submitted;
 
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
-
-    return (__posix_sync(session, pfh->fd, file_handle->name, "handle-sync"));
+    btree = S2BT_SAFE(session);
+    if (pfh->nsubmit - pfh->ncomplete > 0) {
+        if (__posix_file_write_io_uring_complete(session, pfh) != 0)
+            WT_RET_MSG(
+              session, WT_ERROR, "%s: handle-write: io_uring: failed to submit", file_handle->name);
+        return (0);
+    } else
+        return (__posix_sync(session, pfh->fd, file_handle->name, "handle-sync"));
 }
 
 #ifdef HAVE_SYNC_FILE_RANGE
@@ -543,6 +566,11 @@ __posix_file_sync_nowait(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
+
+    if (pfh->nsubmit - pfh->ncomplete > 0) {
+        io_uring_submit_and_wait(&pfh->ring, pfh->nsubmit - pfh->ncomplete);
+        pfh->ncomplete = pfh->nsubmit;
+    }
 
     /* See comment in __posix_sync(): sync cannot be retried or fail. */
     WT_SYSCALL(sync_file_range(pfh->fd, (off64_t)0, (off64_t)0, SYNC_FILE_RANGE_WRITE), ret);
@@ -591,6 +619,47 @@ __posix_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
 #endif
 
 /*
+ * __posix_file_write_io_uring_complete --
+ *     POSIX io_uring submit and process the completion queue.
+ */
+static int
+__posix_file_write_io_uring_complete(WT_SESSION_IMPL *session, WT_FILE_HANDLE_POSIX *pfh)
+{
+    struct io_uring_cqe *complete;
+    int submitted;
+    void *data;
+
+    __wt_verbose(session, WT_VERB_WRITE, "%s, io_uring-submit: fd=%d", pfh->iface.name, pfh->fd);
+
+    if (pfh->nsubmit - pfh->ncomplete > 0) {
+        submitted = io_uring_submit_and_wait(&pfh->ring, pfh->nsubmit - pfh->ncomplete);
+        WT_ASSERT(session, submitted == (pfh->nsubmit - pfh->ncomplete));
+    }
+
+    while (pfh->ncomplete < pfh->nsubmit) {
+        if (io_uring_wait_cqe(&pfh->ring, &complete) < 0)
+            WT_RET_MSG(session, __wt_errno(),
+              "%s: handle-write: io_uring: failed to wait complete queue", pfh->iface.name);
+
+        /* Retrieve user data from complete */
+        data = io_uring_cqe_get_data(complete);
+
+        /* The system call invoked failed */
+        if (complete->res < 0)
+            WT_RET_MSG(session, complete->res, "%s: handle-write: io_uring: system call failed",
+              pfh->iface.name);
+
+        __wt_free(session, data);
+
+        /* Mark this completion as seen */
+        io_uring_cqe_seen(&pfh->ring, complete);
+        pfh->ncomplete++;
+    }
+
+    return (0);
+}
+
+/*
  * __posix_file_write --
  *     POSIX pwrite.
  */
@@ -598,14 +667,19 @@ static int
 __posix_file_write(
   WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset, size_t len, const void *buf)
 {
+    struct io_uring_sqe *sqe;
+    struct iovec iov;
+    WT_BTREE *btree;
     WT_FILE_HANDLE_POSIX *pfh;
     WT_SESSION_IMPL *session;
     size_t chunk;
     ssize_t nw;
     const uint8_t *addr;
+    void *image;
 
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
+    btree = S2BT_SAFE(session);
 
     __wt_verbose(session, WT_VERB_WRITE, "write: %s, fd=%d, offset=%" PRId64 ", len=%" WT_SIZET_FMT,
       file_handle->name, pfh->fd, offset, len);
@@ -619,11 +693,35 @@ __posix_file_write(
     /* Break writes larger than 1GB into 1GB chunks. */
     for (addr = buf; len > 0; addr += nw, len -= (size_t)nw, offset += nw) {
         chunk = WT_MIN(len, WT_GIGABYTE);
-        if ((nw = pwrite(pfh->fd, addr, chunk, offset)) < 0)
-            WT_RET_MSG(session, __wt_errno(),
-              "%s: handle-write: pwrite: failed to write %" WT_SIZET_FMT
-              " bytes at offset %" PRIuMAX,
-              file_handle->name, chunk, (uintmax_t)offset);
+        if (S2C(session)->txn_global.checkpoint_running && btree != NULL &&
+          WT_SESSION_BTREE_SYNC(session)) {
+            sqe = io_uring_get_sqe(&pfh->ring);
+            while (sqe == NULL) {
+                if (__posix_file_write_io_uring_complete(session, pfh) != 0)
+                    WT_RET_MSG(session, WT_ERROR, "%s: handle-write: io_uring: failed to submit",
+                      file_handle->name);
+                sqe = io_uring_get_sqe(&pfh->ring);
+            }
+            WT_RET(__wt_memdup(session, addr, chunk, &image));
+            iov.iov_base = image;
+            iov.iov_len = chunk;
+            nw = chunk;
+
+            io_uring_prep_writev(sqe, pfh->fd, &iov, 1, offset);
+            io_uring_sqe_set_data(sqe, image);
+            pfh->nsubmit++;
+        } else {
+            if (pfh->nsubmit - pfh->ncomplete > 0) {
+                if (__posix_file_write_io_uring_complete(session, pfh) != 0)
+                    WT_RET_MSG(session, WT_ERROR, "%s: handle-write: io_uring: failed to submit",
+                      file_handle->name);
+            }
+            if ((nw = pwrite(pfh->fd, addr, chunk, offset)) < 0)
+                WT_RET_MSG(session, __wt_errno(),
+                  "%s: handle-write: pwrite: failed to write %" WT_SIZET_FMT
+                  " bytes at offset %" PRIuMAX,
+                  file_handle->name, chunk, (uintmax_t)offset);
+        }
     }
     WT_STAT_CONN_INCRV(session, block_byte_write_syscall, len);
     return (0);
@@ -911,7 +1009,10 @@ directory_open:
         file_handle->fh_write = __posix_file_write;
 
     WT_ERR(io_uring_queue_init(WT_IO_URING_ENTRIES, &pfh->ring, 0));
+    pfh->nsubmit = 0;
+    pfh->ncomplete = 0;
 
+    WT_ERR(io_uring_register_files(&pfh->ring, &pfh->fd, 1));
     *file_handlep = file_handle;
 
     return (0);
