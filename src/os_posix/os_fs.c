@@ -30,9 +30,9 @@
 
 #define WT_IO_URING_ENTRIES 64
 
-static int __posix_io_uring_done(WT_FILE_HANDLE *, WT_SESSION *, bool , bool*);
+static int __posix_io_uring_done(WT_FILE_HANDLE *, WT_SESSION *, bool, bool *);
 static int __posix_file_write_io_uring_complete(
-  WT_SESSION_IMPL *session, WT_FILE_HANDLE_POSIX *pfh);
+  WT_SESSION_IMPL *session, WT_FILE_HANDLE_POSIX *pfh, bool wait);
 
 /*
  * __posix_sync --
@@ -356,11 +356,11 @@ __posix_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
     __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-close: fd=%d", file_handle->name, pfh->fd);
 
     if (pfh->nsubmit - pfh->ncomplete > 0) {
-        if (__posix_file_write_io_uring_complete(session, pfh) != 0)
+        if (__posix_file_write_io_uring_complete(session, pfh, true) != 0)
             WT_RET_MSG(
               session, WT_ERROR, "%s: handle-write: io_uring: failed to submit", file_handle->name);
     }
-    io_uring_unregister_files(&pfh->ring);
+
     if (pfh->mmap_file_mappable && pfh->mmap_buf != NULL)
         __wt_unmap_file(file_handle, wt_session);
 
@@ -372,8 +372,8 @@ __posix_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
     }
     WT_RET(__posix_io_uring_done(file_handle, wt_session, false, &io_uring_done));
     if (!io_uring_done)
-        __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-close: fd=%d WARNING - IO still pending", 
-                file_handle->name, pfh->fd); 
+        __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-close: fd=%d WARNING - IO still pending",
+          file_handle->name, pfh->fd);
     io_uring_queue_exit(&pfh->ring);
 
     __wt_free(session, file_handle->name);
@@ -441,7 +441,7 @@ __posix_file_read(
           len >= S2C(session)->buffer_alignment && len % S2C(session)->buffer_alignment == 0));
 
     if (pfh->nsubmit - pfh->ncomplete > 0) {
-        if (__posix_file_write_io_uring_complete(session, pfh) != 0)
+        if (__posix_file_write_io_uring_complete(session, pfh, true) != 0)
             WT_RET_MSG(
               session, WT_ERROR, "%s: handle-write: io_uring: failed to submit", file_handle->name);
     }
@@ -535,16 +535,14 @@ __posix_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t 
 static int
 __posix_file_sync(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 {
-    WT_BTREE *btree;
     WT_FILE_HANDLE_POSIX *pfh;
     WT_SESSION_IMPL *session;
-    int submitted;
 
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
-    btree = S2BT_SAFE(session);
+
     if (pfh->nsubmit - pfh->ncomplete > 0) {
-        if (__posix_file_write_io_uring_complete(session, pfh) != 0)
+        if (__posix_file_write_io_uring_complete(session, pfh, true) != 0)
             WT_RET_MSG(
               session, WT_ERROR, "%s: handle-write: io_uring: failed to submit", file_handle->name);
         return (0);
@@ -623,21 +621,30 @@ __posix_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
  *     POSIX io_uring submit and process the completion queue.
  */
 static int
-__posix_file_write_io_uring_complete(WT_SESSION_IMPL *session, WT_FILE_HANDLE_POSIX *pfh)
+__posix_file_write_io_uring_complete(WT_SESSION_IMPL *session, WT_FILE_HANDLE_POSIX *pfh, bool wait)
 {
     struct io_uring_cqe *complete;
-    int submitted;
+    WT_DECL_RET;
     void *data;
 
     __wt_verbose(session, WT_VERB_WRITE, "%s, io_uring-submit: fd=%d", pfh->iface.name, pfh->fd);
 
     if (pfh->nsubmit - pfh->ncomplete > 0) {
-        submitted = io_uring_submit_and_wait(&pfh->ring, pfh->nsubmit - pfh->ncomplete);
-        WT_ASSERT(session, submitted == (pfh->nsubmit - pfh->ncomplete));
+        if (io_uring_submit(&pfh->ring) < 0)
+            WT_RET_MSG(session, __wt_errno(), "%s: handle-write: io_uring: failed to submit",
+              pfh->iface.name);
     }
 
     while (pfh->ncomplete < pfh->nsubmit) {
-        if (io_uring_wait_cqe(&pfh->ring, &complete) < 0)
+        if (wait)
+            ret = io_uring_wait_cqe(&pfh->ring, &complete);
+        else {
+            ret = io_uring_peek_cqe(&pfh->ring, &complete);
+            if (ret == -EAGAIN)
+                return (0);
+        }
+
+        if (ret < 0)
             WT_RET_MSG(session, __wt_errno(),
               "%s: handle-write: io_uring: failed to wait complete queue", pfh->iface.name);
 
@@ -697,7 +704,7 @@ __posix_file_write(
           WT_SESSION_BTREE_SYNC(session)) {
             sqe = io_uring_get_sqe(&pfh->ring);
             while (sqe == NULL) {
-                if (__posix_file_write_io_uring_complete(session, pfh) != 0)
+                if (__posix_file_write_io_uring_complete(session, pfh, true) != 0)
                     WT_RET_MSG(session, WT_ERROR, "%s: handle-write: io_uring: failed to submit",
                       file_handle->name);
                 sqe = io_uring_get_sqe(&pfh->ring);
@@ -705,14 +712,18 @@ __posix_file_write(
             WT_RET(__wt_memdup(session, addr, chunk, &image));
             iov.iov_base = image;
             iov.iov_len = chunk;
-            nw = chunk;
+            nw = (ssize_t)chunk;
 
             io_uring_prep_writev(sqe, pfh->fd, &iov, 1, offset);
             io_uring_sqe_set_data(sqe, image);
             pfh->nsubmit++;
+
+            if (__posix_file_write_io_uring_complete(session, pfh, true) != 0)
+                WT_RET_MSG(session, WT_ERROR, "%s: handle-write: io_uring: failed to submit",
+                  file_handle->name);
         } else {
             if (pfh->nsubmit - pfh->ncomplete > 0) {
-                if (__posix_file_write_io_uring_complete(session, pfh) != 0)
+                if (__posix_file_write_io_uring_complete(session, pfh, true) != 0)
                     WT_RET_MSG(session, WT_ERROR, "%s: handle-write: io_uring: failed to submit",
                       file_handle->name);
             }
@@ -1012,7 +1023,6 @@ directory_open:
     pfh->nsubmit = 0;
     pfh->ncomplete = 0;
 
-    WT_ERR(io_uring_register_files(&pfh->ring, &pfh->fd, 1));
     *file_handlep = file_handle;
 
     return (0);
@@ -1038,17 +1048,16 @@ __posix_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session)
 }
 
 /*
- * __posix_file_io_uring_done --
- *     Sets result as true if all io_uring requests have finished and false otherwise. If wait is 
- *     set, the call will block until all io_uring requests are done. Returns an error if something 
- *     goes wrong while checking the status. Note that result will be set false in case there is an 
+ * __posix_io_uring_done --
+ *     Sets result as true if all io_uring requests have finished and false otherwise. If wait is
+ *     set, the call will block until all io_uring requests are done. Returns an error if something
+ *     goes wrong while checking the status. Note that result will be set false in case there is an
  *     error to be returned.
  */
 static int
-__posix_io_uring_done(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
-    bool wait, bool* result)
+__posix_io_uring_done(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool wait, bool *result)
 {
-    struct io_uring_cqe* cqe;
+    struct io_uring_cqe *cqe;
     WT_DECL_RET;
     WT_FILE_HANDLE_POSIX *pfh;
     WT_SESSION_IMPL *session;
@@ -1070,16 +1079,14 @@ __posix_io_uring_done(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
     if (wait) {
         WT_ERR(io_uring_wait_cqe_nr(&pfh->ring, &cqe, n_requests));
         *result = true;
-    }
-    else {
+    } else {
         req_finished = io_uring_peek_batch_cqe(&pfh->ring, &cqe, n_requests);
 
         n_requests -= req_finished;
         if (n_requests > 0) {
             pfh->io_uring_requests = n_requests;
             *result = false;
-        }
-        else
+        } else
             *result = true;
     }
 
