@@ -1075,13 +1075,21 @@ __posix_io_uring_done(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool 
         *result = true;
         return 0;
     }
-
+retry:
     if (wait) {
         WT_ERR(io_uring_wait_cqe_nr(&pfh->ring, &cqe, n_requests));
+        if (cqe->res == -EAGAIN){
+            io_uring_cqe_seen(&pfh->ring, cqe);
+            goto retry;
+        }
         *result = true;
     } else {
         req_finished = io_uring_peek_batch_cqe(&pfh->ring, &cqe, n_requests);
-
+        if (cqe->res == -EAGAIN){
+            ret = 0;
+            *result = false;
+            goto err;
+        }
         n_requests -= req_finished;
         if (n_requests > 0) {
             pfh->io_uring_requests = n_requests;
