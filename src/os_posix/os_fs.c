@@ -370,11 +370,14 @@ __posix_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
         if (ret != 0)
             __wt_err(session, ret, "%s: handle-close: close", file_handle->name);
     }
-    WT_RET(__posix_io_uring_done(file_handle, wt_session, false, &io_uring_done));
-    if (!io_uring_done)
-        __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-close: fd=%d WARNING - IO still pending",
-          file_handle->name, pfh->fd);
-    io_uring_queue_exit(&pfh->ring);
+    if (pfh->ring_initialized){
+        WT_RET(__posix_io_uring_done(file_handle, wt_session, false, &io_uring_done));
+        if (!io_uring_done)
+            __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-close: fd=%d WARNING - IO still pending",
+                file_handle->name, pfh->fd);
+        io_uring_queue_exit(&pfh->ring);
+        pfh->ring_initialized = false;
+    }
 
     __wt_free(session, file_handle->name);
     __wt_free(session, pfh);
@@ -856,6 +859,8 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const cha
     /* Set up error handling. */
     pfh->fd = -1;
 
+    pfh->ring_initialized = false;
+
     if (file_type == WT_FS_OPEN_FILE_TYPE_DIRECTORY) {
         f = O_RDONLY;
 #ifdef O_CLOEXEC
@@ -1022,6 +1027,8 @@ directory_open:
     WT_ERR(io_uring_queue_init(WT_IO_URING_ENTRIES, &pfh->ring, 0));
     pfh->nsubmit = 0;
     pfh->ncomplete = 0;
+    pfh->io_uring_requests = 0;
+    pfh->ring_initialized = true;
 
     *file_handlep = file_handle;
 

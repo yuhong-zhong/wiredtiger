@@ -142,6 +142,7 @@ struct __wt_file_handle_posix {
 
     /* io_uring support */
     struct io_uring ring;
+    bool ring_initialized;
     unsigned io_uring_requests;
     uint64_t nsubmit;
     uint64_t ncomplete;
