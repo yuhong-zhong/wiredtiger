@@ -1073,6 +1073,7 @@ __posix_io_uring_done(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool 
 
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
+    cqe = NULL;
 
     WT_UNUSED(session);
 
