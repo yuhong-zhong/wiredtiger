@@ -32,6 +32,7 @@
       {NULL, 0, NULL, 0, 0}, /* WT_ITEM value */                                                 \
       0,                     /* int saved_err */                                                 \
       NULL,                  /* internal_uri */                                                  \
+      false,                 /* debug cursor */                                                  \
       0                      /* uint32_t flags */                                                \
     }
 
@@ -197,7 +198,7 @@ struct __wt_cursor_btree {
     uint8_t v; /* Fixed-length return value */
 
     uint8_t append_tree; /* Cursor appended to the tree */
-
+    bool debug;
     /*
      * We have to restart cursor next/prev after a prepare conflict. Keep the state of the cursor
      * separately so we can restart at exactly the right point.

@@ -698,6 +698,8 @@ struct __wt_cursor {
 	 */
 	const char *internal_uri;
 
+	bool debug;
+
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define	WT_CURSTD_APPEND		0x000001u
 #define	WT_CURSTD_BULK			0x000002u

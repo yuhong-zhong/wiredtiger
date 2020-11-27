@@ -187,12 +187,19 @@ err:
 static int
 __curfile_search(WT_CURSOR *cursor)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     uint64_t time_start, time_stop;
-
+    char ts_string[3][WT_TS_INT_STRING_SIZE];
+    session = (WT_SESSION_IMPL *)(cursor)->session;
+    conn = S2C(session);
     cbt = (WT_CURSOR_BTREE *)cursor;
+
+    /* Set the cursor btree to debug too so we get additional information in txn read. */
+    cbt->debug = cursor->debug;
+
     CURSOR_API_CALL(cursor, session, search, CUR2BT(cbt));
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
@@ -208,6 +215,21 @@ __curfile_search(WT_CURSOR *cursor)
         F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
 err:
+    if (cursor->debug) {
+        WT_IGNORE_RET(__wt_msg(session,
+          "has read %s, read timestamp: %s, txn isolation: %u, stable_timestamp: %s, "
+          "oldest_timestamp: %s, txnid: %lu",
+          F_ISSET(session->txn, WT_TXN_SHARED_TS_READ) ? "yes" : "no",
+          __wt_timestamp_to_string(
+            conn->txn_global.txn_shared_list[session->id].read_timestamp, ts_string[0]),
+          session->txn->isolation,
+          __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string[1]),
+          __wt_timestamp_to_string(conn->txn_global.oldest_timestamp, ts_string[2]),
+          session->txn->id));
+    }
+    cbt->debug = false;
+    cursor->debug = false;
+
     API_END_RET(session, ret);
 }
 
