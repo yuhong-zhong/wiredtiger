@@ -217,15 +217,20 @@ __curfile_search(WT_CURSOR *cursor)
 err:
     if (cursor->debug) {
         WT_IGNORE_RET(__wt_msg(session,
-          "has read %s, read timestamp: %s, txn isolation: %u, stable_timestamp: %s, "
-          "oldest_timestamp: %s, txnid: %lu",
+          "has read %s, read timestamp: %s, stable_timestamp: %s, "
+          "oldest_timestamp: %s, txnid: %lu, flags: %u",
           F_ISSET(session->txn, WT_TXN_SHARED_TS_READ) ? "yes" : "no",
           __wt_timestamp_to_string(
             conn->txn_global.txn_shared_list[session->id].read_timestamp, ts_string[0]),
-          session->txn->isolation,
           __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string[1]),
           __wt_timestamp_to_string(conn->txn_global.oldest_timestamp, ts_string[2]),
-          session->txn->id));
+          session->txn->id, session->txn->flags));
+        WT_IGNORE_RET(__wt_msg(session, "dumping snapshot: min: %lu, max: %lu, snapshot_count: %u",
+          session->txn->snap_min, session->txn->snap_max, session->txn->snapshot_count));
+        for (uint32_t i = 0; i < session->txn->snapshot_count; i++) {
+            WT_IGNORE_RET(
+              __wt_msg(session, "Snapshot entry %u = %lu", i, session->txn->snapshot[i]));
+        }
     }
     cbt->debug = false;
     cursor->debug = false;

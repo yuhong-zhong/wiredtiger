@@ -171,7 +171,7 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
 static int
 __hs_find_upd_int(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
   const char *value_format, uint64_t recno, WT_UPDATE_VALUE *upd_value, bool allow_prepare,
-  WT_ITEM *on_disk_buf, WT_TIME_WINDOW *on_disk_tw)
+  WT_ITEM *on_disk_buf, WT_TIME_WINDOW *on_disk_tw, bool debug)
 {
     WT_CURSOR *hs_cursor;
     WT_CURSOR_BTREE *hs_cbt;
@@ -189,6 +189,7 @@ __hs_find_upd_int(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
     uint32_t hs_btree_id;
     uint8_t *p, recno_key_buf[WT_INTPACK64_MAXSIZE], upd_type;
     int cmp;
+    char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool upd_found;
 
     hs_cursor = NULL;
@@ -236,9 +237,14 @@ __hs_find_upd_int(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
     if (read_timestamp == WT_TS_NONE)
         read_timestamp = WT_TS_MAX;
 
+    if (debug)
+        WT_IGNORE_RET(__wt_msg(session, "Positioning history store cursor"));
+
     WT_ERR_NOTFOUND_OK(
       __wt_hs_cursor_position(session, hs_cursor, btree_id, key, read_timestamp, NULL), true);
     if (ret == WT_NOTFOUND) {
+        if (debug)
+            WT_IGNORE_RET(__wt_msg(session, "Cursor position unsuccessful, exiting search"));
         ret = 0;
         goto done;
     }
@@ -252,16 +258,30 @@ __hs_find_upd_int(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_counter));
 
         /* Stop before crossing over to the next btree */
-        if (hs_btree_id != btree_id)
+        if (hs_btree_id != btree_id) {
+            if (debug)
+                WT_IGNORE_RET(__wt_msg(session, "Left btree, exiting search"));
             goto done;
+        }
 
         /*
          * Keys are sorted in an order, skip the ones before the desired key, and bail out if we
          * have crossed over the desired key and not found the record we are looking for.
          */
         WT_ERR(__wt_compare(session, NULL, &hs_key, key, &cmp));
-        if (cmp != 0)
+        if (cmp != 0) {
+            if (debug)
+                WT_IGNORE_RET(__wt_msg(session, "Left key range, exiting search"));
             goto done;
+        }
+        if (debug)
+            WT_IGNORE_RET(__wt_msg(session,
+              "Found history store record for key:"
+              " start_ts: %s, start_txn: %lu, stop_ts: %s, stop_txn: %lu",
+              __wt_timestamp_to_string(hs_cbt->upd_value->tw.start_ts, ts_string[0]),
+              hs_cbt->upd_value->tw.start_txn,
+              __wt_timestamp_to_string(hs_cbt->upd_value->tw.stop_ts, ts_string[1]),
+              hs_cbt->upd_value->tw.stop_txn));
 
         /*
          * If the stop time pair on the tombstone in the history store is already globally visible
@@ -270,17 +290,28 @@ __hs_find_upd_int(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
         if (__wt_txn_tw_stop_visible_all(session, &hs_cbt->upd_value->tw)) {
             WT_STAT_CONN_INCR(session, cursor_prev_hs_tombstone);
             WT_STAT_DATA_INCR(session, cursor_prev_hs_tombstone);
+            if (debug)
+                WT_IGNORE_RET(
+                  __wt_msg(session, "Found globally visible tombstone. Skipping record"));
             continue;
         }
         /*
          * If the stop time point of a record is visible to us, we won't be able to see anything for
          * this entire key. Just jump straight to the end.
          */
-        if (__wt_txn_tw_stop_visible(session, &hs_cbt->upd_value->tw))
+        if (__wt_txn_tw_stop_visible(session, &hs_cbt->upd_value->tw)) {
+            if (debug) {
+                WT_IGNORE_RET(
+                  __wt_msg(session, "Stop time point of record visible, continuing search anyway"));
+                continue;
+            }
             goto done;
+        }
         /* If the start time point is visible to us, let's return that record. */
         if (__wt_txn_tw_start_visible(session, &hs_cbt->upd_value->tw))
             break;
+        else
+            WT_IGNORE_RET(__wt_msg(session, "Start point not visible. Skipping record"));
     }
 
     WT_ERR(hs_cursor->get_value(
@@ -447,7 +478,8 @@ err:
  */
 int
 __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_format, uint64_t recno,
-  WT_UPDATE_VALUE *upd_value, bool allow_prepare, WT_ITEM *on_disk_buf, WT_TIME_WINDOW *on_disk_tw)
+  WT_UPDATE_VALUE *upd_value, bool allow_prepare, WT_ITEM *on_disk_buf, WT_TIME_WINDOW *on_disk_tw,
+  bool debug)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
@@ -457,7 +489,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
     WT_RET(__wt_hs_cursor_open(session));
     WT_WITH_BTREE(session, CUR2BT(session->hs_cursor),
       (ret = __hs_find_upd_int(session, btree->id, key, value_format, recno, upd_value,
-         allow_prepare, on_disk_buf, on_disk_tw)));
+         allow_prepare, on_disk_buf, on_disk_tw, debug)));
     WT_TRET(__wt_hs_cursor_close(session));
     return (ret);
 }
