@@ -83,6 +83,7 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, u
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_UPDATE *hs_upd, *upd_local;
+    char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     hs_upd = upd_local = NULL;
@@ -129,6 +130,11 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, u
     WT_WITH_PAGE_INDEX(session, ret = __wt_hs_row_search(cbt, &cursor->key, true));
     WT_ERR(ret);
     WT_ERR(__wt_hs_modify(cbt, hs_upd));
+
+    __wt_verbose(session, WT_VERB_HS_ACTIVITY,
+      "HS insert record with start durable/commit timestamp: %s/%s and Txnid: %" PRIu64,
+      __wt_timestamp_to_string(hs_upd->durable_ts, ts_string[0]),
+      __wt_timestamp_to_string(hs_upd->start_ts, ts_string[1]), hs_upd->txnid);
 
     /*
      * Since the two updates (tombstone and the standard) will reconcile into a single entry, we are

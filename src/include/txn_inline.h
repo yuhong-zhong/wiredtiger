@@ -917,7 +917,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
 {
     WT_TIME_WINDOW tw;
     WT_UPDATE *prepare_upd;
-    char ts_string[2][WT_TS_INT_STRING_SIZE];
+    char time_string[WT_TIME_STRING_SIZE];
     bool have_stop_tw, retry;
     prepare_upd = NULL;
     retry = true;
@@ -955,6 +955,11 @@ retry:
         cbt->upd_value->buf.size = vpack->size;
     }
 
+    if (cbt->debug) {
+        WT_IGNORE_RET(__wt_msg(
+          session, "Found ondisk value with tw: %s", __wt_time_window_to_string(&tw, time_string)));
+    }
+
     /*
      * If the stop time point is set, that means that there is a tombstone at that time. If it is
      * not prepared and it is visible to our txn it means we've just spotted a tombstone and should
@@ -971,9 +976,7 @@ retry:
         cbt->upd_value->tw.prepare = tw.prepare;
         cbt->upd_value->type = WT_UPDATE_TOMBSTONE;
         if (cbt->debug) {
-            WT_IGNORE_RET(__wt_msg(session,
-              "Found tombstone visible tombstone on disk, returning. stop_ts: %s stop_txn: %lu",
-              __wt_timestamp_to_string(tw.stop_ts, ts_string[0]), tw.stop_txn));
+            WT_IGNORE_RET(__wt_msg(session, "Found a visible tombstone on disk, returning."));
         }
         return (0);
     }
@@ -1001,11 +1004,8 @@ retry:
     }
 
     if (cbt->debug) {
-        WT_IGNORE_RET(__wt_msg(session,
-          "Checking history store as no ondisk value is visible to us, on disk tw:"
-          " start_ts: %s, start_txn: %lu, stop_ts: %s, stop_txn: %lu",
-          __wt_timestamp_to_string(tw.start_ts, ts_string[0]), tw.start_txn,
-          __wt_timestamp_to_string(tw.stop_ts, ts_string[1]), tw.stop_txn));
+        WT_IGNORE_RET(
+          __wt_msg(session, "Checking history store as no ondisk value is visible to us."));
     }
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
