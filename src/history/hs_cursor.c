@@ -181,6 +181,7 @@ __hs_find_upd_int(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
     WT_ITEM hs_key, recno_key;
     WT_MODIFY_VECTOR modifies;
     WT_TXN *txn;
+    WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *txn_shared;
     WT_UPDATE *mod_upd;
     wt_timestamp_t durable_timestamp, durable_timestamp_tmp, hs_start_ts, hs_start_ts_tmp;
@@ -190,16 +191,18 @@ __hs_find_upd_int(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
     uint8_t *p, recno_key_buf[WT_INTPACK64_MAXSIZE], upd_type;
     int cmp;
     char time_string[WT_TIME_STRING_SIZE];
-    bool upd_found;
+    char ts_string[2][WT_TS_INT_STRING_SIZE];
+    bool upd_found, out_of_order_debug;
 
     hs_cursor = NULL;
     mod_upd = NULL;
     orig_hs_value_buf = NULL;
+    txn_global = &S2C(session)->txn_global;
     WT_CLEAR(hs_key);
     __wt_modify_vector_init(session, &modifies);
     txn = session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(session);
-    upd_found = false;
+    out_of_order_debug = upd_found = false;
 
     WT_STAT_CONN_INCR(session, cursor_search_hs);
     WT_STAT_DATA_INCR(session, cursor_search_hs);
@@ -237,8 +240,16 @@ __hs_find_upd_int(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
     if (read_timestamp == WT_TS_NONE)
         read_timestamp = WT_TS_MAX;
 
-    if (hs_cbt->debug)
-        WT_IGNORE_RET(__wt_msg(session, "Positioning history store cursor"));
+    if (hs_cbt->debug) {
+        WT_IGNORE_RET(__wt_msg(session, "Positioning history store cursor:"));
+        WT_IGNORE_RET(__wt_msg(session,
+        "stable_timestamp: %s, oldest_timestamp: %s, oldest_id %lu,"
+          " checkpoint_running %s, checkpoint_id %lu",
+          __wt_timestamp_to_string(txn_global->stable_timestamp, ts_string[0]),
+          __wt_timestamp_to_string(txn_global->oldest_timestamp, ts_string[1]),
+          txn_global->oldest_id, txn_global->checkpoint_running ? "true" : "false",
+          txn_global->checkpoint_running ? txn_global->checkpoint_txn_shared.id : WT_TXN_NONE));
+    }
 
     WT_ERR_NOTFOUND_OK(
       __wt_hs_cursor_position(session, hs_cursor, btree_id, key, read_timestamp, NULL), true);
@@ -299,6 +310,7 @@ __hs_find_upd_int(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
             if (hs_cbt->debug) {
                 WT_IGNORE_RET(
                   __wt_msg(session, "Stop time point of record visible, continuing search anyway"));
+                out_of_order_debug = true;
                 continue;
             }
             goto done;
@@ -450,6 +462,8 @@ err:
 
     if (ret == 0) {
         if (upd_found) {
+            if (out_of_order_debug)
+                WT_ERR_PANIC(session, WT_PANIC, "Found out of order updates in history store.");
             WT_STAT_CONN_INCR(session, cache_hs_read);
             WT_STAT_DATA_INCR(session, cache_hs_read);
         } else {
