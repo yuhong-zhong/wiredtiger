@@ -216,8 +216,7 @@ __curfile_search(WT_CURSOR *cursor)
 
 err:
     if (cursor->debug) {
-        WT_IGNORE_RET(__wt_msg(session,
-          "has read %s, read timestamp: %s, txnid: %lu, flags: %u",
+        WT_IGNORE_RET(__wt_msg(session, "has read %s, read timestamp: %s, txnid: %lu, flags: %u",
           F_ISSET(session->txn, WT_TXN_SHARED_TS_READ) ? "yes" : "no",
           __wt_timestamp_to_string(
             conn->txn_global.txn_shared_list[session->id].read_timestamp, ts_string),

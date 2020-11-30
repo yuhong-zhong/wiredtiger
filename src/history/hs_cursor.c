@@ -244,7 +244,7 @@ __hs_find_upd_int(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
         WT_IGNORE_RET(__wt_msg(session, "Searching history store for (btree_id,key): (%u,%.*s)",
             btree_id, (int)key->size, (char *)key->data));
         WT_IGNORE_RET(__wt_msg(session,
-        "stable_timestamp: %s, oldest_timestamp: %s, oldest_id %lu,"
+          "stable_timestamp: %s, oldest_timestamp: %s, oldest_id %lu,"
           " checkpoint_running %s, checkpoint_id %lu",
           __wt_timestamp_to_string(txn_global->stable_timestamp, ts_string[0]),
           __wt_timestamp_to_string(txn_global->oldest_timestamp, ts_string[1]),

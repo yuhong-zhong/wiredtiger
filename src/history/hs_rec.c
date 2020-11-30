@@ -83,7 +83,7 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, u
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_UPDATE *hs_upd, *upd_local;
-    char ts_string[2][WT_TS_INT_STRING_SIZE];
+    char ts_string[4][WT_TS_INT_STRING_SIZE];
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     hs_upd = upd_local = NULL;
@@ -131,18 +131,22 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, u
     WT_ERR(ret);
     WT_ERR(__wt_hs_modify(cbt, hs_upd));
 
-    WT_IGNORE_RET(__wt_msg(session,
-      "HS insert record btree_id: %" PRIu64 " key: %.*s, counter: %" PRIu64
-      " with start durable/commit timestamp: %s/%s and txnid: %" PRIu64,
-      btree_id, (int)key->size, (char *)key->data, counter,
-      __wt_timestamp_to_string(upd_local->durable_ts, ts_string[0]),
-      __wt_timestamp_to_string(upd_local->start_ts, ts_string[1]), upd_local->txnid));
-
     if (hs_upd != upd_local)
         WT_IGNORE_RET(__wt_msg(session,
-          "HS insert record with stop durable/commit timestamp:%s/%s and txnid: %" PRIu64,
-          __wt_timestamp_to_string(hs_upd->durable_ts, ts_string[0]),
-          __wt_timestamp_to_string(hs_upd->start_ts, ts_string[1]), hs_upd->txnid));
+          "HS insert record btree_id: %" PRIu64 " key: %.*s, counter: %" PRIu64
+          " with start durable/commit timestamp: %s/%s and txnid: %" PRIu64
+          " and stop durable/commit timestamp: %s/%s and txnid: %" PRIu64, btree_id, (int)key->size,
+          (char *)key->data, counter, __wt_timestamp_to_string(upd_local->durable_ts, ts_string[0]),
+          __wt_timestamp_to_string(upd_local->start_ts, ts_string[1]), upd_local->txnid,
+          __wt_timestamp_to_string(hs_upd->durable_ts, ts_string[2]),
+          __wt_timestamp_to_string(hs_upd->start_ts, ts_string[3]), hs_upd->txnid));
+    else
+        WT_IGNORE_RET(__wt_msg(session,
+          "HS insert record btree_id: %" PRIu64 " key: %.*s, counter: %" PRIu64
+          " with start durable/commit timestamp: %s/%s and txnid: %" PRIu64,
+          btree_id, (int)key->size, (char *)key->data, counter,
+          __wt_timestamp_to_string(upd_local->durable_ts, ts_string[0]),
+          __wt_timestamp_to_string(upd_local->start_ts, ts_string[1]), upd_local->txnid));
 
     /*
      * Since the two updates (tombstone and the standard) will reconcile into a single entry, we are
