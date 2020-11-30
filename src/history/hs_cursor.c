@@ -241,7 +241,8 @@ __hs_find_upd_int(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
         read_timestamp = WT_TS_MAX;
 
     if (hs_cbt->debug) {
-        WT_IGNORE_RET(__wt_msg(session, "Positioning history store cursor:"));
+        WT_IGNORE_RET(__wt_msg(session, "Searching history store for (btree_id,key): (%u,%.*s)",
+            btree_id, (int)key->size, (char *)key->data));
         WT_IGNORE_RET(__wt_msg(session,
         "stable_timestamp: %s, oldest_timestamp: %s, oldest_id %lu,"
           " checkpoint_running %s, checkpoint_id %lu",
