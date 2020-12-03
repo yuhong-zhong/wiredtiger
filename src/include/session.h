@@ -18,6 +18,13 @@ struct __wt_data_handle_cache {
     TAILQ_ENTRY(__wt_data_handle_cache) hashq;
 };
 
+struct __wt_search_cache {
+    WT_ITEM *key;
+    int64_t result;
+    char *uri;
+    TAILQ_ENTRY(__wt_search_cache) q;
+};
+
 /*
  * WT_HAZARD --
  *	A hazard pointer.
@@ -80,6 +87,7 @@ struct __wt_session_impl {
     uint64_t last_sweep;        /* Last sweep for dead handles */
     struct timespec last_epoch; /* Last epoch time returned */
 
+    TAILQ_HEAD(_searches, __wt_search_cache) searches;
     WT_CURSOR_LIST cursors;          /* Cursors closed with the session */
     u_int ncursors;                  /* Count of active file cursors. */
     uint32_t cursor_sweep_position;  /* Position in cursor_cache for sweep */

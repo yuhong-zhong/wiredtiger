@@ -1983,6 +1983,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
 
     TAILQ_INIT(&session_ret->cursors);
     TAILQ_INIT(&session_ret->dhandles);
+    TAILQ_INIT(&session_ret->searches);
 
     /*
      * If we don't have them, allocate the cursor and dhandle hash arrays. Allocate the table hash

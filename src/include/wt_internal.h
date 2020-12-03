@@ -293,6 +293,8 @@ struct __wt_save_upd;
 typedef struct __wt_save_upd WT_SAVE_UPD;
 struct __wt_scratch_track;
 typedef struct __wt_scratch_track WT_SCRATCH_TRACK;
+struct __wt_search_cache;
+typedef struct __wt_search_cache WT_SEARCH_CACHE;
 struct __wt_session_impl;
 typedef struct __wt_session_impl WT_SESSION_IMPL;
 struct __wt_session_stash;

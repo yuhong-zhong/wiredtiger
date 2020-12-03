@@ -181,6 +181,42 @@ err:
 }
 
 /*
+ * __curfile_track --
+ *     Track a search performed.
+ */
+static void
+__curfile_track(WT_CURSOR *cursor, WT_CURSOR_BTREE *cbt, int search_result)
+{
+    WT_DECL_ITEM(key_copy);
+    WT_DECL_RET;
+    WT_SEARCH_CACHE *cached_search;
+    WT_SESSION_IMPL *session;
+
+    cached_search = NULL;
+    session = (WT_SESSION_IMPL *)cursor->session;
+
+    WT_ASSERT(session, search_result == 0 || search_result == WT_NOTFOUND);
+
+    if (F_ISSET(session->txn, WT_TXN_RUNNING) && !WT_CURSOR_RECNO(cursor)) {
+        WT_ERR(__wt_calloc_one(session, &cached_search));
+        cached_search->uri = NULL;
+        WT_ERR(__wt_calloc_one(session, &key_copy));
+        WT_ERR(__wt_buf_set(session, key_copy, cbt->iface.key.data, cbt->iface.key.size));
+        cached_search->key = key_copy;
+        cached_search->result = search_result;
+        WT_ERR(__wt_strdup(session, cursor->uri, &cached_search->uri));
+        TAILQ_INSERT_TAIL(&session->searches, cached_search, q);
+    }
+err:
+    /* Free a bunch of stuff here but swallow the error. */
+    if (ret != 0) {
+        __wt_free(session, cached_search->uri);
+        __wt_free(session, cached_search);
+        __wt_buf_free(session, key_copy);
+    }
+}
+
+/*
  * __curfile_search --
  *     WT_CURSOR->search method for the btree cursor type.
  */
@@ -198,7 +234,11 @@ __curfile_search(WT_CURSOR *cursor)
     WT_ERR(__cursor_checkkey(cursor));
 
     time_start = __wt_clock(session);
-    WT_ERR(__wt_btcur_search(cbt));
+    ret = __wt_btcur_search(cbt);
+    if (ret == 0 || ret == WT_NOTFOUND)
+        __curfile_track(cursor, cbt, ret);
+    WT_ERR(ret);
+
     time_stop = __wt_clock(session);
     __wt_stat_usecs_hist_incr_opread(session, WT_CLOCKDIFF_US(time_stop, time_start));
 

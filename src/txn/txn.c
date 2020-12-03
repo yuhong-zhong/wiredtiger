@@ -1346,6 +1346,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     /* Permit the commit if the transaction failed, but was read-only. */
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) || txn->mod_count == 0);
+    if (!prepare)
+        __wt_txn_repeat_reads(session);
 
     /* Configure the timeout for this commit operation. */
     WT_ERR(__txn_config_operation_timeout(session, cfg, true));
@@ -1614,6 +1616,8 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR));
 
+    __wt_txn_repeat_reads(session);
+
     /*
      * A transaction should not have updated any of the logged tables, if debug mode logging is not
      * turned on.
@@ -1732,6 +1736,48 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
+ * __wt_txn_repeat_reads --
+ *     Repeat all the cursor search calls that have happened within the transaction so far.
+ */
+void
+__wt_txn_repeat_reads(WT_SESSION_IMPL *session)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    WT_SEARCH_CACHE *cached_search;
+    const char *open_cursor_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
+
+    cursor = NULL;
+
+    /*
+     * Walk the queue once, repeating each search previously preformed. If our transaction wasn't
+     * read only we can't guarantee that a search will see the same result as we don't track removal
+     * or insertion.
+     */
+    TAILQ_FOREACH (cached_search, &session->searches, q) {
+        WT_ERR(__wt_open_cursor(session, cached_search->uri, NULL, open_cursor_cfg, &cursor));
+        F_SET(cursor, WT_CURSTD_RAW);
+        cursor->set_key(cursor, cached_search->key);
+        ret = __wt_btcur_search((WT_CURSOR_BTREE*) cursor);
+        if (ret != 0 && ret != WT_NOTFOUND) {
+            WT_ERR(ret);
+        }
+        WT_ASSERT(session, session->txn->mod_count != 0 || ret == cached_search->result);
+        WT_ERR(cursor->close(cursor));
+    }
+
+err:
+    /* Walk the queue again, removing all items and freeing their memory. */
+    while (!TAILQ_EMPTY(&session->searches)){
+        cached_search = TAILQ_FIRST(&session->searches);
+        TAILQ_REMOVE(&session->searches, cached_search, q);
+        __wt_free(session, cached_search->uri);
+        __wt_buf_free(session, cached_search->key);
+        __wt_free(session, cached_search);
+    }
+}
+
+/*
  * __wt_txn_rollback --
  *     Roll back the current transaction.
  */
@@ -1752,6 +1798,8 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
     readonly = txn->mod_count == 0;
 
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
+    if (!prepare)
+        __wt_txn_repeat_reads(session);
 
     /* Rollback notification. */
     if (txn->notify != NULL)
