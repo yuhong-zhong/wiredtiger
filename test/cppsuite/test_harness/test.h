@@ -25,7 +25,7 @@ class test {
     test(const std::string &config)
     {
         _configuration = new configuration(name, config);
-        _workload_generator = new workload_generator(_configuration);
+        _workload_generator = new workload_generator(_configuration, true);
         _runtime_monitor = new runtime_monitor();
         _timestamp_manager = new timestamp_manager();
         _thread_manager = new thread_manager();
