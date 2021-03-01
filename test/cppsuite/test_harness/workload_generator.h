@@ -2,13 +2,14 @@
 #define WORKLOAD_GENERATOR_H
 
 #include "api_const.h"
+#include "component.h"
 #include "configuration_settings.h"
 #include "random_generator.h"
 #include "debug_utils.h"
 #include "thread_manager.h"
 
 namespace test_harness {
-class workload_generator {
+class workload_generator : public component {
     public:
     workload_generator(configuration *configuration)
     {
@@ -45,22 +46,23 @@ class workload_generator {
      *      - Insert m key/value pairs in each collection. Values are random strings which size is
      * defined by the configuration.
      */
-    int
-    load(const char *home = DEFAULT_DIR)
+    void
+    load()
     {
         WT_CURSOR *cursor;
         int64_t collection_count, key_count, value_size;
-        std::string collection_name;
+        std::string collection_name, home;
 
         cursor = nullptr;
         collection_count = key_count = value_size = 0;
         collection_name = "";
+        home = DEFAULT_DIR;
 
         /* Create the working dir. */
-        testutil_make_work_dir(home);
+        testutil_make_work_dir(home.c_str());
 
         /* Open connection. */
-        testutil_check(wiredtiger_open(home, NULL, CONNECTION_CREATE, &_conn));
+        testutil_check(wiredtiger_open(home.c_str(), NULL, CONNECTION_CREATE, &_conn));
 
         /* Open session. */
         testutil_check(_conn->open_session(_conn, NULL, NULL, &_session));
@@ -97,11 +99,10 @@ class workload_generator {
         debug_info(
           std::to_string(collection_count) + " key/value inserted", _trace_level, DEBUG_INFO);
         debug_info("Load stage done", _trace_level, DEBUG_INFO);
-        return (0);
     }
 
     /* Do the work of the main part of the workload. */
-    int
+    void
     run()
     {
 
@@ -113,7 +114,6 @@ class workload_generator {
 
         testutil_check(_configuration->get_int(DURATION_SECONDS, duration_seconds));
         testutil_check(_configuration->get_int(READ_THREADS, read_threads));
-
         /* Generate threads to execute read operations on the collections. */
         for (int i = 0; i < read_threads; ++i) {
             testutil_check(_conn->open_session(_conn, NULL, NULL, &session));
@@ -121,15 +121,12 @@ class workload_generator {
               new thread_context(session, _collection_names, thread_operation::READ);
             _thread_manager.add_thread(tc, &execute_operation);
         }
+    }
 
-        /*
-         * Spin until duration seconds has expired. If the call to run() returns we destroy the test
-         * and the workload generator.
-         */
-        std::this_thread::sleep_for(std::chrono::seconds(duration_seconds));
-        _thread_manager.finish();
+    void
+    finish() {
         debug_info("Run stage done", _trace_level, DEBUG_INFO);
-        return 0;
+        _thread_manager.finish();
     }
 
     /* Workload threaded operations. */

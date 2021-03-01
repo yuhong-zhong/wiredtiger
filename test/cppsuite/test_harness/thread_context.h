@@ -6,7 +6,7 @@
 #include "wiredtiger.h"
 
 namespace test_harness {
-enum class thread_operation { INSERT, UPDATE, READ, REMOVE, CHECKPOINT, TIMESTAMP, MONITOR };
+enum class thread_operation { INSERT, UPDATE, READ, REMOVE, CHECKPOINT, TIMESTAMP, MONITOR, COMPONENT };
 class thread_context {
     public:
     thread_context(
