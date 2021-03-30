@@ -328,12 +328,27 @@ struct __wt_connection_impl {
     wt_off_t ckpt_logsize; /* Checkpoint log size period */
     bool ckpt_signalled;   /* Checkpoint signalled */
 
-    uint64_t ckpt_apply;      /* Checkpoint handles applied */
-    uint64_t ckpt_apply_time; /* Checkpoint applied handles gather time */
-    uint64_t ckpt_skip;       /* Checkpoint handles skipped */
-    uint64_t ckpt_skip_time;  /* Checkpoint skipped handles gather time */
-    uint64_t ckpt_usecs;      /* Checkpoint timer */
-    uint64_t ckpt_prep_max;   /* Checkpoint prepare time min/max */
+    uint64_t ckpt_apply;                 /* Checkpoint handles applied */
+    uint64_t ckpt_get_ckptlist_duration; /* time taken to get checkpoint list from metadata */
+    uint64_t ckpt_buckets_walked_session_find_dhandle; /* buckets walked finding dhandle in session
+                                                          cache */
+    uint64_t
+      ckpt_buckets_walked_conn_dhandle_find; /* buckets walked finding dhandle in conn cache */
+
+    uint64_t
+      ckpt_lock_to_delete_duration; /* Checkpoint time taken to lock checkpoints to be deleted */
+    uint64_t
+      ckpt_handle_reobtain_for_apply_list_insert; /* Checkpoint time taken to re-obtain handle when
+                                                     inserting in the apply handle list */
+    uint64_t ckpt_handle_metadata_race_check_duration; /* Checkpoint time taken to check if we raced
+                                                          with a metadata operation on dhandles */
+    uint64_t
+      ckpt_apply_session_cache_time; /* Checkpoint time taken to bring handles to session cache */
+    uint64_t ckpt_apply_time;        /* Checkpoint applied handles gather time */
+    uint64_t ckpt_skip;              /* Checkpoint handles skipped */
+    uint64_t ckpt_skip_time;         /* Checkpoint skipped handles gather time */
+    uint64_t ckpt_usecs;             /* Checkpoint timer */
+    uint64_t ckpt_prep_max;          /* Checkpoint prepare time min/max */
     uint64_t ckpt_prep_min;
     uint64_t ckpt_prep_recent; /* Checkpoint prepare time recent/total */
     uint64_t ckpt_prep_total;

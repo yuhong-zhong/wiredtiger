@@ -63,6 +63,9 @@ __session_find_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *ch
 
     bucket = __wt_hash_city64(uri, strlen(uri)) & (S2C(session)->dh_hash_size - 1);
 retry:
+    if (WT_SESSION_IS_CHECKPOINT(session))
+        S2C(session)->ckpt_buckets_walked_session_find_dhandle++;
+
     TAILQ_FOREACH (dhandle_cache, &session->dhhash[bucket], hashq) {
         dhandle = dhandle_cache->dhandle;
         if (WT_DHANDLE_INACTIVE(dhandle) && !WT_IS_METADATA(dhandle)) {

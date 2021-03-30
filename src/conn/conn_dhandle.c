@@ -237,6 +237,8 @@ __wt_conn_dhandle_find(WT_SESSION_IMPL *session, const char *uri, const char *ch
     WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST));
 
     bucket = __wt_hash_city64(uri, strlen(uri)) & (conn->dh_hash_size - 1);
+    if (WT_SESSION_IS_CHECKPOINT(session))
+        conn->ckpt_buckets_walked_conn_dhandle_find++;
     if (checkpoint == NULL) {
         TAILQ_FOREACH (dhandle, &conn->dhhash[bucket], hashq) {
             if (F_ISSET(dhandle, WT_DHANDLE_DEAD))
@@ -583,7 +585,7 @@ __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    uint64_t time_diff, time_start, time_stop;
+    uint64_t time_diff, time_start, time_stop, time_start_session_cache, time_stop_session_cache;
     bool skip;
 
     conn = S2C(session);
@@ -602,7 +604,15 @@ __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
      * We need to pull the handle into the session handle cache and make sure it's referenced to
      * stop other internal code dropping the handle (e.g in LSM when cleaning up obsolete chunks).
      */
-    if ((ret = __wt_session_get_dhandle(session, dhandle->name, dhandle->checkpoint, NULL, 0)) != 0)
+    if (WT_SESSION_IS_CHECKPOINT(session))
+        time_start_session_cache = __wt_clock(session);
+    ret = __wt_session_get_dhandle(session, dhandle->name, dhandle->checkpoint, NULL, 0);
+    if (WT_SESSION_IS_CHECKPOINT(session)) {
+        time_stop_session_cache = __wt_clock(session);
+        time_diff = WT_CLOCKDIFF_US(time_stop_session_cache, time_start_session_cache);
+        conn->ckpt_apply_session_cache_time += time_diff;
+    }
+    if (ret != 0)
         return (ret == EBUSY ? 0 : ret);
 
     if (WT_SESSION_IS_CHECKPOINT(session))
@@ -663,6 +673,13 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
         if (WT_SESSION_IS_CHECKPOINT(session)) {
             conn->ckpt_apply = conn->ckpt_skip = 0;
             conn->ckpt_apply_time = conn->ckpt_skip_time = 0;
+            conn->ckpt_apply_session_cache_time = 0;
+            conn->ckpt_handle_metadata_race_check_duration = 0;
+            conn->ckpt_handle_reobtain_for_apply_list_insert = 0;
+            conn->ckpt_lock_to_delete_duration = 0;
+            conn->ckpt_buckets_walked_session_find_dhandle = 0;
+            conn->ckpt_buckets_walked_conn_dhandle_find = 0;
+            conn->ckpt_get_ckptlist_duration = 0;
             time_start = __wt_clock(session);
             F_SET(conn, WT_CONN_CKPT_GATHER);
         }
@@ -687,8 +704,23 @@ done:
             WT_STAT_CONN_SET(session, txn_checkpoint_handle_skipped, conn->ckpt_skip);
             WT_STAT_CONN_SET(session, txn_checkpoint_handle_walked, conn->dhandle_count);
             WT_STAT_CONN_SET(session, txn_checkpoint_handle_duration, time_diff);
+            WT_STAT_CONN_SET(session, txn_checkpoint_handle_session_cache_duration,
+              conn->ckpt_apply_session_cache_time);
             WT_STAT_CONN_SET(session, txn_checkpoint_handle_duration_apply, conn->ckpt_apply_time);
             WT_STAT_CONN_SET(session, txn_checkpoint_handle_duration_skip, conn->ckpt_skip_time);
+            WT_STAT_CONN_SET(session, txn_checkpoint_handle_metadata_race_check_duration,
+              conn->ckpt_handle_metadata_race_check_duration);
+            WT_STAT_CONN_SET(session,
+              txn_checkpoint_handle_re_obtain_for_apply_list_insert_duration,
+              conn->ckpt_handle_reobtain_for_apply_list_insert);
+            WT_STAT_CONN_SET(
+              session, txn_checkpoint_lock_to_delete_duration, conn->ckpt_lock_to_delete_duration);
+            WT_STAT_CONN_SET(session, txn_checkpoint_buckets_walked_session_find_dhandle,
+              conn->ckpt_buckets_walked_session_find_dhandle);
+            WT_STAT_CONN_SET(session, txn_checkpoint_buckets_walked_conn_dhandle_find,
+              conn->ckpt_buckets_walked_conn_dhandle_find);
+            WT_STAT_CONN_SET(
+              session, txn_checkpoint_get_ckptlist_duration, conn->ckpt_get_ckptlist_duration);
         }
         return (0);
     }

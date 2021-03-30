@@ -241,9 +241,13 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_BTREE *btree;
     WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    uint64_t time_start, time_stop, time_diff;
     const char *name;
     bool force;
+
+    conn = S2C(session);
 
     /* Find out if we have to force a checkpoint. */
     WT_RET(__wt_config_gets_def(session, cfg, "force", 0, &cval));
@@ -273,6 +277,8 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
      * holding the schema lock and have an open btree handle, so if we can't update the metadata,
      * then there has been some state change invisible to the checkpoint transaction.
      */
+
+    time_start = __wt_clock(session);
     if (!WT_IS_METADATA(session->dhandle)) {
         WT_CURSOR *meta_cursor;
 
@@ -288,11 +294,17 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
              * from here.
              */
             WT_TRET(__wt_metadata_cursor_release(session, &meta_cursor));
+            time_stop = __wt_clock(session);
+            time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
+            conn->ckpt_handle_metadata_race_check_duration += time_diff;
             return (0);
         }
         WT_TRET(__wt_metadata_cursor_release(session, &meta_cursor));
         WT_RET(ret);
     }
+    time_stop = __wt_clock(session);
+    time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
+    conn->ckpt_handle_metadata_race_check_duration += time_diff;
 
     /*
      * Decide whether the tree needs to be included in the checkpoint and if so, acquire the
@@ -320,7 +332,12 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
     name = session->dhandle->name;
     session->dhandle = NULL;
 
-    if ((ret = __wt_session_get_dhandle(session, name, NULL, NULL, 0)) != 0)
+    time_start = __wt_clock(session);
+    ret = __wt_session_get_dhandle(session, name, NULL, NULL, 0);
+    time_stop = __wt_clock(session);
+    time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
+    conn->ckpt_handle_reobtain_for_apply_list_insert += time_diff;
+    if (ret != 0)
         return (ret == EBUSY ? 0 : ret);
 
     /*
@@ -1262,6 +1279,7 @@ __checkpoint_lock_dirty_tree_int(WT_SESSION_IMPL *session, bool is_checkpoint, b
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    uint64_t time_start, time_stop, time_diff;
     u_int max_ckpt_drop;
     bool is_wt_ckpt;
 
@@ -1326,7 +1344,11 @@ __checkpoint_lock_dirty_tree_int(WT_SESSION_IMPL *session, bool is_checkpoint, b
              * uniquely named and it's OK to have multiple in the system: clear the delete flag for
              * them, and otherwise fail.
              */
+            time_start = __wt_clock(session);
             ret = __wt_session_lock_checkpoint(session, ckpt->name);
+            time_stop = __wt_clock(session);
+            time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
+            conn->ckpt_lock_to_delete_duration += time_diff;
             if (ret == 0)
                 continue;
             if (ret == EBUSY && WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT)) {
@@ -1362,6 +1384,7 @@ __checkpoint_lock_dirty_tree(
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
     uint64_t now;
+    uint64_t time_diff, time_start, time_stop;
     char *name_alloc;
     const char *name;
     bool is_drop, is_wt_ckpt, skip_ckpt;
@@ -1438,7 +1461,11 @@ __checkpoint_lock_dirty_tree(
     F_CLR(btree, WT_BTREE_OBSOLETE_PAGES);
 
     /* Get the list of checkpoints for this file. */
+    time_start = __wt_clock(session);
     WT_ERR(__wt_meta_ckptlist_get(session, dhandle->name, true, &ckptbase));
+    time_stop = __wt_clock(session);
+    time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
+    S2C(session)->ckpt_get_ckptlist_duration += time_diff;
 
     /* We may be dropping specific checkpoints, check the configuration. */
     if (cfg != NULL) {
