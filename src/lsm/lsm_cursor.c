@@ -1174,7 +1174,7 @@ __clsm_lookup(WT_CURSOR_LSM *clsm, WT_ITEM *value)
         /* 
          * enable ebpf only on read-only chunk
          */
-        cbt = (WT_CURSOR_LSM *)c;
+        cbt = (WT_CURSOR_BTREE *)c;
         F_CLR(cbt, WT_CBT_EBPF_SUCCESS);
         if (F_ISSET(clsm, WT_CLSM_EBPF) 
             && __wt_txn_visible_all(session, clsm->chunks[i]->switch_txn, WT_TS_NONE)) {

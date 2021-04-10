@@ -1,3 +1,6 @@
+#ifndef EBPF_TRAVERSAL_H
+#define EBPF_TRAVERSAL_H
+
 /*
  * Config definitions
  */
@@ -158,3 +161,5 @@ int ebpf_lookup(int fd, uint64_t offset, const uint8_t *key_buf, uint64_t key_bu
 /************************************************
  * FAKE_EBPF END
  ************************************************/
+
+#endif  /* EBPF_TRAVERSAL_H */
