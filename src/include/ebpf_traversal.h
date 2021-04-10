@@ -88,12 +88,12 @@ inline int ebpf_vunpack_uint(const uint8_t **pp, uint64_t *xp) {
         /* higher 4 bits of the first byte is 1110 */
         ret = ebpf_unpack_posint(pp, xp);
         if (ret != 0) {
-            return -10;
+            return ret;
         }
         *xp += EBPF_POS_2BYTE_MAX + 1;
         return 0;
     default:
-        return -11;
+        return -EBPF_EINVAL;
     }
 
     *pp = p;
