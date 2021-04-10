@@ -527,7 +527,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
      * pinned page doesn't find an exact match, search from the root.
      */
     valid = false;
-    if (__cursor_page_pinned(cbt, true)) {
+    if (__cursor_page_pinned(cbt, true) && !F_ISSET(cbt, WT_CBT_EBPF)) {
         __wt_txn_cursor_op(session);
 
         if (btree->type == BTREE_ROW) {
@@ -545,6 +545,13 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 
         if (btree->type == BTREE_ROW) {
             WT_ERR(__cursor_row_search(cbt, false, NULL, NULL));
+            if (F_ISSET(cbt, WT_CBT_EBPF_SUCCESS)) {
+                if (cbt->compare == 0) {
+                    return 0;
+                } else {
+                    return WT_NOTFOUND;
+                }
+            }
             if (cbt->compare == 0)
                 WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
         } else {

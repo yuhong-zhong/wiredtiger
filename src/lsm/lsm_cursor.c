@@ -1145,6 +1145,7 @@ __clsm_lookup(WT_CURSOR_LSM *clsm, WT_ITEM *value)
     WT_SESSION_IMPL *session;
     u_int i;
     bool have_hash;
+    WT_CURSOR_BTREE *cbt;
 
     c = NULL;
     cursor = &clsm->iface;
@@ -1169,12 +1170,28 @@ __clsm_lookup(WT_CURSOR_LSM *clsm, WT_ITEM *value)
             if (ret == 0)
                 WT_LSM_TREE_STAT_INCR(session, clsm->lsm_tree->bloom_hit);
         }
+
+        /* 
+         * enable ebpf only on read-only chunk
+         */
+        cbt = c;
+        F_CLR(cbt, WT_CBT_EBPF_SUCCESS);
+        if (F_ISSET(clsm, WT_CLSM_EBPF) 
+            && F_ISSET(clsm->chunks[i], WT_LSM_CHUNK_ONDISK)) {
+            F_SET(cbt, WT_CBT_EBPF);  /* only cursor with WT_CBT_EBPF can perform ebpf traversal */
+        }
+
         c->set_key(c, &cursor->key);
         if ((ret = c->search(c)) == 0) {
-            WT_ERR(c->get_key(c, &cursor->key));
-            WT_ERR(c->get_value(c, value));
-            if (__clsm_deleted(clsm, value))
-                ret = WT_NOTFOUND;
+            if (F_ISSET(cbt, WT_CBT_EBPF_SUCCESS)) {
+                memcpy(clsm->ebpf_buffer, cbt->ebpf_buffer, EBPF_BUFFER_SIZE);
+                F_SET(clsm, WT_CLSM_EBPF_SUCCESS);
+            } else {
+                WT_ERR(c->get_key(c, &cursor->key));
+                WT_ERR(c->get_value(c, value));
+                if (__clsm_deleted(clsm, value))
+                    ret = WT_NOTFOUND;
+            }
             goto done;
         }
         WT_ERR_NOTFOUND_OK(ret, false);
@@ -1220,11 +1237,12 @@ __clsm_search(WT_CURSOR *cursor)
     WT_ERR(__clsm_enter(clsm, true, false));
     F_CLR(clsm, WT_CLSM_ITERATE_NEXT | WT_CLSM_ITERATE_PREV);
 
+    F_SET(clsm, WT_CLSM_EBPF);
     ret = __clsm_lookup(clsm, &cursor->value);
 
 err:
     __clsm_leave(clsm);
-    if (ret == 0)
+    if (ret == 0 && !F_ISSET(clsm, WT_CLSM_EBPF_SUCCESS))
         __clsm_deleted_decode(clsm, &cursor->value);
     API_END_RET(session, ret);
 }
@@ -1743,6 +1761,11 @@ __wt_clsm_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, cons
      * open_cursors on the first operation.
      */
     clsm->dsk_gen = 0;
+
+    /*
+     * Allocate buffer for ebpf value
+     */
+    WT_ERR(__wt_calloc(session, EBPF_BUFFER_SIZE, sizeof(uint8_t), &clsm->ebpf_buffer));
 
     /* If the next_random option is set, configure a random cursor */
     WT_ERR(__wt_config_gets_def(session, cfg, "next_random", 0, &cval));

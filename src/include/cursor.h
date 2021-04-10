@@ -84,6 +84,9 @@ struct __wt_cursor_btree {
 
     WT_DATA_HANDLE *dhandle; /* Data handle for the btree */
 
+    int ebpf_fd; /* file descriptor for ebpf function */
+    uint8_t ebpf_buffer;
+
     /*
      * The following fields are set by the search functions as a precursor to page modification: we
      * have a page, a WT_COL/WT_ROW slot on the page, an insert head, insert list and a skiplist
@@ -221,6 +224,8 @@ struct __wt_cursor_btree {
 #define WT_CBT_READ_ONCE 0x100u          /* Page in with WT_READ_WONT_NEED */
 #define WT_CBT_SEARCH_SMALLEST 0x200u    /* Row-store: small-key insert list */
 #define WT_CBT_VAR_ONPAGE_MATCH 0x400u   /* Var-store: on-page recno match */
+#define WT_CBT_EBPF 0x800u
+#define WT_CBT_EBPF_SUCCESS 0x800u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 
 #define WT_CBT_POSITION_MASK /* Flags associated with position */                      \

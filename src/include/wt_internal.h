@@ -448,6 +448,8 @@ typedef uint64_t wt_timestamp_t;
 #include "serial.i"
 #include "time.i"
 
+#include "ebpf_traversal.h"
+
 #if defined(__cplusplus)
 }
 #endif

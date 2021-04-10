@@ -223,6 +223,8 @@ __wt_row_search(WT_CURSOR_BTREE *cbt, WT_ITEM *srch_key, bool insert, WT_REF *le
     uint32_t base, indx, limit, read_flags;
     int cmp, depth;
     bool append_check, descend_right, done;
+    int ebpf_ret;
+    uint64_t ebpf_offset, ebpf_size;
 
     session = CUR2S(cbt);
     btree = S2BT(session);
@@ -425,6 +427,43 @@ descend:
         read_flags = WT_READ_RESTART_OK;
         if (F_ISSET(cbt, WT_CBT_READ_ONCE))
             FLD_SET(read_flags, WT_READ_WONT_NEED);
+
+        /*
+         * check if the descent is in memory.
+         * if not, trigger ebpf traversal
+         */
+        if (F_ISSET(cbt, WT_CBT_EBPF)) {
+            if (descent->state == WT_REF_DISK) {
+                /* parse wt cell to get file offset & size */
+                ebpf_ret = ebpf_parse_cell_addr_int(descent->addr, &ebpf_offset, &ebpf_size);
+                if (ebpf_ret < 0 || ebpf_size != EBPF_BLOCK_SIZE) {
+                    __wt_verbose(session, WT_VERB_LSM, "ebpf_parse_cell_addr_int error - uri: %s, depth: %d, ret: %d, size: %ld", 
+                                 cbt->dhandle->name, depth, ebpf_ret, ebpf_size);
+                    F_CLR(cbt, WT_CBT_EBPF);
+                    goto skip_ebpf;
+                }
+                /*
+                 * start ebpf traversal
+                 */
+                ebpf_ret = ebpf_lookup(cbt->ebpf_fd, ebpf_offset, srch_key->data, srch_key->size, 
+                                       cbt->ebpf_buffer, EBPF_BUFFER_SIZE);
+                if (ebpf_ret < 0) {
+                    __wt_verbose(session, WT_VERB_LSM, "ebpf_lookup error - uri: %s, depth: %d, ret: %d", 
+                                 cbt->dhandle->name, depth, ebpf_ret);
+                    F_CLR(cbt, WT_CBT_EBPF);
+                    goto skip_ebpf;
+                } else {
+                    goto ebpf_out;
+                }
+            }
+#ifdef EBPF_DEBUG
+            else {
+                __wt_verbose(session, WT_VERB_LSM, "descent state is not WT_REF_DISK - uri: %s, depth: %d, state: %d", 
+                             cbt->dhandle->name, depth, descent->state);
+            }
+#endif
+        }
+skip_ebpf:
         if ((ret = __wt_page_swap(session, current, descent, read_flags)) == 0) {
             current = descent;
             continue;
@@ -549,6 +588,14 @@ leaf_only:
 leaf_match:
         cbt->compare = 0;
         cbt->slot = WT_ROW_SLOT(page, rip);
+        return (0);
+    }
+
+    if (0) {
+ebpf_out:
+        F_SET(cbt, WT_CBT_EBPF_SUCCESS);
+        cbt->compare = ebpf_ret;
+        cbt->slot = 0;  /* slot is not important */
         return (0);
     }
 
