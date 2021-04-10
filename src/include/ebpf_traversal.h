@@ -88,12 +88,12 @@ inline int ebpf_vunpack_uint(const uint8_t **pp, uint64_t *xp) {
         /* higher 4 bits of the first byte is 1110 */
         ret = ebpf_unpack_posint(pp, xp);
         if (ret != 0) {
-            return -EBPF_EINVAL;
+            return -10;
         }
         *xp += EBPF_POS_2BYTE_MAX + 1;
         return 0;
     default:
-        return -EBPF_EINVAL;
+        return -11;
     }
 
     *pp = p;
@@ -127,33 +127,25 @@ inline int ebpf_parse_cell_addr_int(const uint8_t *cell, uint64_t *offset, uint6
     int ret;
 
     /* verify cell type & validity window & RLE in descriptor byte (1B) */
-    // if ((WT_CELL_SHORT_TYPE(cell[0]) != 0)
-    //     || (WT_CELL_TYPE(cell[0]) != WT_CELL_ADDR_INT)
-    //     || (cell[0] & WT_CELL_SECOND_DESC != 0)
-    //     || (cell[0] & WT_CELL_64V != 0)) {
-    //     return -EBPF_EINVAL;
-    // }
-    if (WT_CELL_SHORT_TYPE(cell[0]) != 0)
-        return -1;
-    if (WT_CELL_TYPE(cell[0]) != WT_CELL_ADDR_INT)
-        return -2;
-    if (cell[0] & WT_CELL_SECOND_DESC != 0)
-        return -3;
-    if (cell[0] & WT_CELL_64V != 0)
-        return -4;
+    if ((WT_CELL_SHORT_TYPE(cell[0]) != 0)
+        || (WT_CELL_TYPE(cell[0]) != WT_CELL_ADDR_INT)
+        || (cell[0] & WT_CELL_SECOND_DESC != 0)
+        || (cell[0] & WT_CELL_64V != 0)) {
+        return -EBPF_EINVAL;
+    }
     p += 1;
 
     /* the cell is followed by data length and a chunk of data */
     ret = ebpf_vunpack_uint(&p, &addr_len);
     if (ret != 0) {
-        return -5;
+        return ret;
     }
     addr = p;
 
     /* convert addr to file offset */
     ret = ebpf_addr_to_offset(addr, offset, size);
     if (ret != 0) {
-        return -6;
+        return ret;
     }
 
     return (p + addr_len) - cell;  /* return the size of cell + size of payload */
