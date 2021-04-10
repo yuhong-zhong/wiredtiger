@@ -433,7 +433,7 @@ descend:
          * if not, trigger ebpf traversal
          */
         if (F_ISSET(cbt, WT_CBT_EBPF)) {
-            if (descent->state == WT_REF_DISK) {
+            if (descent->state == WT_REF_DISK && ebpf_get_cell_type(descent->addr) == WT_CELL_ADDR_INT) {
                 /* parse wt cell to get file offset & size */
                 ebpf_ret = ebpf_parse_cell_addr_int(descent->addr, &ebpf_offset, &ebpf_size);
                 if (ebpf_ret < 0 || ebpf_size != EBPF_BLOCK_SIZE) {
