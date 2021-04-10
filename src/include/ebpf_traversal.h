@@ -101,7 +101,7 @@ int ebpf_vunpack_uint(const uint8_t **pp, uint64_t *xp) {
     return 0;
 }
 
-int ebpf_addr_to_offset(const uint8_t *addr, uint64_t *offset, uint32_t *size) {
+int ebpf_addr_to_offset(const uint8_t *addr, uint64_t *offset, uint64_t *size) {
     uint64_t raw_offset, raw_size, raw_checksum;
 
     ebpf_vunpack_uint(&addr, &raw_offset);
@@ -148,7 +148,7 @@ int ebpf_parse_cell_addr_int(const uint8_t *cell, uint64_t *offset, uint64_t *si
     return (p + addr_len) - cell;  /* return the size of cell + size of payload */
 }
 
-int ebpf_lookup(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_buf_size, 
+int ebpf_lookup(int fd, uint64_t offset, const uint8_t *key_buf, uint64_t key_buf_size, 
                 uint8_t *value_buf, uint64_t value_buf_size) {
     return -EBPF_EINVAL;
 }
