@@ -7,7 +7,7 @@
 #define EBPF_BUFFER_SIZE 4096
 #define EBPF_BLOCK_SIZE 512
 
-int ebpf_open_fd(const char *uri) {
+inline int ebpf_open_fd(const char *uri) {
     return 0;
 }
 
@@ -46,7 +46,7 @@ int ebpf_open_fd(const char *uri) {
 /* Extract bits <start> to <end> from a value (counting from LSB == 0). */
 #define GET_BITS(x, start, end) (((uint64_t)(x) & ((1U << (start)) - 1U)) >> (end))
 
-int ebpf_unpack_posint(const uint8_t **pp, uint64_t *retp) {
+inline int ebpf_unpack_posint(const uint8_t **pp, uint64_t *retp) {
     uint64_t x;
     uint8_t len, max_len = 16;  /* max_len is set to pass the ebpf verifier */
     const uint8_t *p;
@@ -63,7 +63,7 @@ int ebpf_unpack_posint(const uint8_t **pp, uint64_t *retp) {
     return 0;
 }
 
-int ebpf_vunpack_uint(const uint8_t **pp, uint64_t *xp) {
+inline int ebpf_vunpack_uint(const uint8_t **pp, uint64_t *xp) {
     const uint8_t *p;
     int ret;
 
@@ -101,7 +101,7 @@ int ebpf_vunpack_uint(const uint8_t **pp, uint64_t *xp) {
     return 0;
 }
 
-int ebpf_addr_to_offset(const uint8_t *addr, uint64_t *offset, uint64_t *size) {
+inline int ebpf_addr_to_offset(const uint8_t *addr, uint64_t *offset, uint64_t *size) {
     uint64_t raw_offset, raw_size, raw_checksum;
 
     ebpf_vunpack_uint(&addr, &raw_offset);
@@ -118,7 +118,7 @@ int ebpf_addr_to_offset(const uint8_t *addr, uint64_t *offset, uint64_t *size) {
     return 0;
 }
 
-int ebpf_parse_cell_addr_int(const uint8_t *cell, uint64_t *offset, uint64_t *size) {
+inline int ebpf_parse_cell_addr_int(const uint8_t *cell, uint64_t *offset, uint64_t *size) {
     const uint8_t *p = cell, *addr;
     uint64_t addr_len;
     int ret;
@@ -148,7 +148,7 @@ int ebpf_parse_cell_addr_int(const uint8_t *cell, uint64_t *offset, uint64_t *si
     return (p + addr_len) - cell;  /* return the size of cell + size of payload */
 }
 
-int ebpf_lookup(int fd, uint64_t offset, const uint8_t *key_buf, uint64_t key_buf_size, 
+inline int ebpf_lookup(int fd, uint64_t offset, const uint8_t *key_buf, uint64_t key_buf_size, 
                 uint8_t *value_buf, uint64_t value_buf_size) {
     return -EBPF_EINVAL;
 }
