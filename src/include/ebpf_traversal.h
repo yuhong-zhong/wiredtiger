@@ -132,7 +132,7 @@ inline int ebpf_parse_cell_addr_int(const uint8_t *cell, uint64_t *offset, uint6
     if (WT_CELL_SHORT_TYPE(cell[0]) != 0)
         return -1;
     if (WT_CELL_TYPE(cell[0]) != WT_CELL_ADDR_INT)
-        return -2;
+        return -10 - WT_CELL_TYPE(cell[0]);
     if (cell[0] & WT_CELL_SECOND_DESC != 0)
         return -3;
     if (cell[0] & WT_CELL_64V != 0)
