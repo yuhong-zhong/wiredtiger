@@ -146,14 +146,14 @@ inline int ebpf_parse_cell_addr_int(const uint8_t *cell, uint64_t *offset, uint6
     /* the cell is followed by data length and a chunk of data */
     ret = ebpf_vunpack_uint(&p, &addr_len);
     if (ret != 0) {
-        return ret;
+        return -5;
     }
     addr = p;
 
     /* convert addr to file offset */
     ret = ebpf_addr_to_offset(addr, offset, size);
     if (ret != 0) {
-        return ret;
+        return -6;
     }
 
     return (p + addr_len) - cell;  /* return the size of cell + size of payload */
