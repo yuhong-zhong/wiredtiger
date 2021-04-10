@@ -456,12 +456,6 @@ descend:
                     goto ebpf_out;
                 }
             }
-#ifdef EBPF_DEBUG
-            else {
-                __wt_verbose(session, WT_VERB_LSM, "descent state is not WT_REF_DISK - uri: %s, depth: %d, state: %d", 
-                             cbt->dhandle->name, depth, descent->state);
-            }
-#endif
         }
 skip_ebpf:
         if ((ret = __wt_page_swap(session, current, descent, read_flags)) == 0) {
