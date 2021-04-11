@@ -527,7 +527,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
      * pinned page doesn't find an exact match, search from the root.
      */
     valid = false;
-    if (__cursor_page_pinned(cbt, true) && !F_ISSET(cbt, WT_CBT_EBPF)) {
+    if (__cursor_page_pinned(cbt, true)) {
         __wt_txn_cursor_op(session);
 
         if (btree->type == BTREE_ROW) {
