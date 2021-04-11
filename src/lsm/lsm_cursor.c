@@ -1248,7 +1248,7 @@ err:
     if (ret == 0 && !F_ISSET(clsm, WT_CLSM_EBPF_SUCCESS))
         __clsm_deleted_decode(clsm, &cursor->value);
     if (ret == 0 && F_ISSET(clsm, WT_CLSM_EBPF_SUCCESS))
-        cursor->set_value(clsm->ebpf_buffer);
+        cursor->set_value(clsm, clsm->ebpf_buffer);
     API_END_RET(session, ret);
 }
 
