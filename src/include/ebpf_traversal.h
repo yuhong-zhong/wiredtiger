@@ -194,8 +194,6 @@ inline int ebpf_parse_cell_addr_int(const uint8_t **cellp, uint64_t *offset, uin
     return 0;
 }
 
-inline int 
-
 inline int ebpf_lookup(int fd, uint64_t offset, const uint8_t *key_buf, uint64_t key_buf_size, 
                 uint8_t *value_buf, uint64_t value_buf_size) {
     off_t lseek_ret;
