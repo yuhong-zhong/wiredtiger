@@ -21,8 +21,42 @@
 #define EBPF_NOT_FOUND 1
 
 /*
+ * Page layout
+ */
+ struct ebpf_page_header {
+     uint64_t recno; /* 00-07: column-store starting recno */
+     uint64_t write_gen; /* 08-15: write generation */
+     uint32_t mem_size; /* 16-19: in-memory page size */
+     union {
+         uint32_t entries; /* 20-23: number of cells on page */
+         uint32_t datalen; /* 20-23: overflow data length */
+     } u;
+     uint8_t type; /* 24: page type */
+#define EBPF_PAGE_COMPRESSED 0x01u   /* Page is compressed on disk */
+#define EBPF_PAGE_EMPTY_V_ALL 0x02u  /* Page has all zero-length values */
+#define EBPF_PAGE_EMPTY_V_NONE 0x04u /* Page has no zero-length values */
+#define EBPF_PAGE_ENCRYPTED 0x08u    /* Page is encrypted on disk */
+#define EBPF_PAGE_UNUSED 0x10u       /* Historic lookaside store page updates, no longer used */
+     uint8_t flags; /* 25: flags */
+     uint8_t unused; /* 26: unused padding */
+#define EBPF_PAGE_VERSION_ORIG 0 /* Original version */
+#define EBPF_PAGE_VERSION_TS 1   /* Timestamps added */
+     uint8_t version; /* 27: version */
+};
+#define EBPF_PAGE_HEADER_SIZE 28
+
+struct ebpf_block_header {
+    /* copy from https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/include/block.h#L329 */
+
+    uint32_t disk_size; /* 00-03: on-disk page size */
+    uint32_t checksum; /* 04-07: checksum */
+    uint8_t flags; /* 08: flags */
+    uint8_t unused[3]; /* 09-11: unused padding */
+}
+
+/*
  * Cell types & macros
- * extract from https://github.com/wiredtiger/wiredtiger/blob/9b32813d625d3dbdf0fd83a7eb4ce10fda0d18f3/src/include/cell.h#L10
+ * extract from https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/include/cell.h#L10
  */
 #define EBPF_CELL_SHORT_TYPE(v) ((v)&0x03U)
 
@@ -32,7 +66,7 @@
 
 /* 
  * Variable-sized unpacking for unsigned integers
- * extracted from https://github.com/wiredtiger/wiredtiger/blob/9b32813d625d3dbdf0fd83a7eb4ce10fda0d18f3/src/include/intpack.i#L254
+ * extracted from https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/include/intpack.i#L254
  */
 #define EBPF_POS_1BYTE_MARKER (uint8_t)0x80
 #define EBPF_POS_2BYTE_MARKER (uint8_t)0xc0
@@ -64,7 +98,7 @@ inline int ebpf_vunpack_uint(const uint8_t **pp, uint64_t *xp) {
     const uint8_t *p;
     int ret;
 
-    /* encoding scheme: https://github.com/wiredtiger/wiredtiger/blob/9b32813d625d3dbdf0fd83a7eb4ce10fda0d18f3/src/include/intpack.i#L10 */
+    /* encoding scheme: https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/include/intpack.i#L10 */
     p = *pp;
     switch (*p & 0xf0) {
     case EBPF_POS_1BYTE_MARKER:
@@ -119,8 +153,8 @@ inline int ebpf_get_cell_type(const uint8_t *cell) {
     return WT_CELL_SHORT_TYPE(cell[0]) ? WT_CELL_SHORT_TYPE(cell[0]) : WT_CELL_TYPE(cell[0]);
 }
 
-inline int ebpf_parse_cell_addr_int(const uint8_t *cell, uint64_t *offset, uint64_t *size) {
-    const uint8_t *p = cell, *addr;
+inline int ebpf_parse_cell_addr_int(const uint8_t **cell, uint64_t *offset, uint64_t *size, bool update_pointer) {
+    const uint8_t *p = *cell, *addr;
     uint8_t flags;
     uint64_t addr_len;
     int ret;
@@ -155,8 +189,12 @@ inline int ebpf_parse_cell_addr_int(const uint8_t *cell, uint64_t *offset, uint6
         return ret;
     }
 
-    return (p + addr_len) - cell;  /* return the size of cell + size of payload */
+    if (update_pointer)
+        *cell = p + addr_len;
+    return 0;
 }
+
+inline int 
 
 inline int ebpf_lookup(int fd, uint64_t offset, const uint8_t *key_buf, uint64_t key_buf_size, 
                 uint8_t *value_buf, uint64_t value_buf_size) {
