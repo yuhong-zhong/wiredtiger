@@ -675,11 +675,13 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
     const uint8_t *p;
     uint8_t flags;
     bool copy_cell;
+    bool _condition = true;
 
     copy_cell = false;
     copy.len = 0; /* [-Wconditional-uninitialized] */
     copy.v = 0;   /* [-Wconditional-uninitialized] */
 
+    _condition = _condition && (unpack_addr != NULL) && (end == NULL) && (unpack_value == NULL);
     if (unpack_addr == NULL) {
         unpack = (WT_CELL_UNPACK_COMMON *)unpack_value;
         tw = &unpack_value->tw;
@@ -753,6 +755,8 @@ copy_cell_restart:
         WT_CELL_LEN_CHK(p, 0);
     }
 
+    _condition = _condition && (unpack->raw == WT_CELL_ADDR_INT);
+    _condition = _condition && ((cell->__chunk[0] & WT_CELL_SECOND_DESC) == 0);
     /* Check for a validity window. */
     switch (unpack->raw) {
     case WT_CELL_ADDR_DEL:
@@ -849,6 +853,7 @@ copy_cell_restart:
      * Check for an RLE count or record number that optionally follows the cell descriptor byte on
      * column-store variable-length pages.
      */
+    _condition = _condition && (cell->__chunk[0] & WT_CELL_64V);
     if (cell->__chunk[0] & WT_CELL_64V) /* skip value */
         WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->v));
 
@@ -894,6 +899,8 @@ copy_cell_restart:
     case WT_CELL_KEY:
     case WT_CELL_KEY_PFX:
     case WT_CELL_VALUE:
+        if (_condition)
+            printf("_condition: %d\n", (int)(p - (uint8_t *)cell));
         /*
          * The cell is followed by a 4B data length and a chunk of data.
          */
