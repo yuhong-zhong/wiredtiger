@@ -900,8 +900,8 @@ copy_cell_restart:
     case WT_CELL_KEY_PFX:
     case WT_CELL_VALUE:
         if (_condition)
-            __wt_verbose(session, WT_VERB_LSM, "NUMBER: %d", 
-                         (int)(p - (uint8_t *)cell));
+            __wt_verbose(session, WT_VERB_LSM, "NUMBER: %d, CONDITION: %d", 
+                         (int)(p - (uint8_t *)cell), (cell->__chunk[0] & WT_CELL_64V) && (cell->__chunk[0] & WT_CELL_SECOND_DESC));
         /*
          * The cell is followed by a 4B data length and a chunk of data.
          */
