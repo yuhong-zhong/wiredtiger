@@ -159,7 +159,7 @@ inline int ebpf_parse_cell_addr_int(const uint8_t *cell, uint64_t *offset, uint6
 
 inline int ebpf_lookup(int fd, uint64_t offset, const uint8_t *key_buf, uint64_t key_buf_size, 
                 uint8_t *value_buf, uint64_t value_buf_size) {
-    off_t lseek_ret
+    off_t lseek_ret;
     int read_ret;
 
     if (fd < 0 || key_buf == NULL || value_buf == NULL || value_buf_size < EBPF_BUFFER_SIZE) {
