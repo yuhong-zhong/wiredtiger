@@ -153,8 +153,8 @@ inline int ebpf_get_cell_type(const uint8_t *cell) {
     return WT_CELL_SHORT_TYPE(cell[0]) ? WT_CELL_SHORT_TYPE(cell[0]) : WT_CELL_TYPE(cell[0]);
 }
 
-inline int ebpf_parse_cell_addr_int(const uint8_t **cell, uint64_t *offset, uint64_t *size, bool update_pointer) {
-    const uint8_t *p = *cell, *addr;
+inline int ebpf_parse_cell_addr_int(const uint8_t **cellp, uint64_t *offset, uint64_t *size, bool update_pointer) {
+    const uint8_t *cell = *cellp, *p = *cellp, *addr;
     uint8_t flags;
     uint64_t addr_len;
     int ret;
@@ -190,7 +190,7 @@ inline int ebpf_parse_cell_addr_int(const uint8_t **cell, uint64_t *offset, uint
     }
 
     if (update_pointer)
-        *cell = p + addr_len;
+        *cellp = p + addr_len;
     return 0;
 }
 
