@@ -123,17 +123,26 @@ inline int ebpf_get_cell_type(const uint8_t *cell) {
 
 inline int ebpf_parse_cell_addr_int(const uint8_t *cell, uint64_t *offset, uint64_t *size) {
     const uint8_t *p = cell, *addr;
+    uint8_t flags;
     uint64_t addr_len;
     int ret;
 
     /* verify cell type & validity window & RLE in descriptor byte (1B) */
     if ((WT_CELL_SHORT_TYPE(cell[0]) != 0)
         || (WT_CELL_TYPE(cell[0]) != WT_CELL_ADDR_INT)
-        || (cell[0] & WT_CELL_SECOND_DESC != 0)
-        || (cell[0] & WT_CELL_64V != 0)) {
+        || ((cell[0] & WT_CELL_64V) != 0)) {
         return -EBPF_EINVAL;
     }
     p += 1;
+
+    if ((cell[0] & WT_CELL_SECOND_DESC) != 0) {
+        /* the second descriptor byte */
+        flags = *p;
+        p += 1;
+        if (flags != 0) {
+            return -EBPF_EINVAL;
+        }
+    }
 
     /* the cell is followed by data length and a chunk of data */
     ret = ebpf_vunpack_uint(&p, &addr_len);
