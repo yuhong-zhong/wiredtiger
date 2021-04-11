@@ -853,7 +853,7 @@ copy_cell_restart:
      * Check for an RLE count or record number that optionally follows the cell descriptor byte on
      * column-store variable-length pages.
      */
-    _condition = _condition && (cell->__chunk[0] & WT_CELL_64V);
+    _condition = _condition && (cell->__chunk[0] & WT_CELL_64V == 0);
     if (cell->__chunk[0] & WT_CELL_64V) /* skip value */
         WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->v));
 
@@ -902,8 +902,6 @@ copy_cell_restart:
         if (_condition)
             __wt_verbose(session, WT_VERB_LSM, "NUMBER: %d", 
                          (int)(p - (uint8_t *)cell));
-        else
-            __wt_verbose(session, WT_VERB_LSM, "CONDITION FAILED: %d", 1);
         /*
          * The cell is followed by a 4B data length and a chunk of data.
          */
