@@ -902,6 +902,8 @@ copy_cell_restart:
         if (_condition)
             __wt_verbose(session, WT_VERB_LSM, "NUMBER: %d", 
                          (int)(p - (uint8_t *)cell));
+        else
+            __wt_verbose(session, WT_VERB_LSM, "CONDITION FAILED");
         /*
          * The cell is followed by a 4B data length and a chunk of data.
          */
