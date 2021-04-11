@@ -446,7 +446,8 @@ descend:
                 /*
                  * start ebpf traversal
                  */
-                ebpf_ret = ebpf_lookup(cbt->ebpf_fd, ebpf_offset, srch_key->data, srch_key->size, 
+                ebpf_ret = ebpf_lookup(((WT_FILE_HANDLE_POSIX *)btree->bm->block->fh->handle)->fd, 
+                                       ebpf_offset, srch_key->data, srch_key->size, 
                                        cbt->ebpf_buffer, EBPF_BUFFER_SIZE);
                 if (ebpf_ret < 0) {
                     __wt_verbose(session, WT_VERB_LSM, "ebpf_lookup error - uri: %s, depth: %d, ret: %d", 
