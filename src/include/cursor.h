@@ -84,7 +84,6 @@ struct __wt_cursor_btree {
 
     WT_DATA_HANDLE *dhandle; /* Data handle for the btree */
 
-    int ebpf_fd; /* file descriptor for ebpf function */
     uint8_t *ebpf_buffer;
 
     /*

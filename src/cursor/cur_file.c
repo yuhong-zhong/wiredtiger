@@ -660,7 +660,6 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
     cursor->value_format = btree->value_format;
     cbt->dhandle = session->dhandle;
 
-    cbt->ebpf_fd = ebpf_open_fd(cursor->internal_uri);
     WT_ERR(__wt_calloc(session, EBPF_BUFFER_SIZE, sizeof(uint8_t), &cbt->ebpf_buffer));
 
     /*

@@ -6,9 +6,6 @@
 #define EBPF_BUFFER_SIZE 4096
 #define EBPF_BLOCK_SIZE 512
 
-inline int ebpf_open_fd(const char *uri) {
-    return 0;
-}
 
 /************************************************
  * FAKE_EBPF START
