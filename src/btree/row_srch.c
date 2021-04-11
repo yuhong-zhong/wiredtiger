@@ -434,8 +434,10 @@ descend:
          */
         if (F_ISSET(cbt, WT_CBT_EBPF)) {
             if (descent->state == WT_REF_DISK
-                && ebpf_get_cell_type(descent->addr) == WT_CELL_ADDR_INT 
-                && !__wt_off_page(descent->home, descent->addr)) {
+                && ebpf_get_cell_type(descent->addr) == WT_CELL_ADDR_INT) {
+                const uint8_t *_addr;
+                size_t _size;
+                __wt_ref_info(session, descent, &_addr, &_size, NULL);
                 /* parse wt cell to get file offset & size */
                 ebpf_ret = ebpf_parse_cell_addr_int(descent->addr, &ebpf_offset, &ebpf_size);
                 if (ebpf_ret < 0 || ebpf_size != EBPF_BLOCK_SIZE) {
