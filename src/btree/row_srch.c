@@ -201,6 +201,10 @@ __check_leaf_key_range(
     return (0);
 }
 
+int
+__block_buffer_to_addr(
+  uint32_t allocsize, const uint8_t **pp, wt_off_t *offsetp, uint32_t *sizep, uint32_t *checksump);
+
 /*
  * __wt_row_search --
  *     Search a row-store tree for a specific key.

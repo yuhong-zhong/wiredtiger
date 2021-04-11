@@ -13,7 +13,7 @@
  *     Convert a filesystem address cookie into its components, UPDATING the caller's buffer
  *     reference so it can be called repeatedly to load a buffer.
  */
-static int
+int
 __block_buffer_to_addr(
   uint32_t allocsize, const uint8_t **pp, wt_off_t *offsetp, uint32_t *sizep, uint32_t *checksump)
 {
