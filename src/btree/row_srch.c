@@ -436,18 +436,16 @@ descend:
             if (descent->state == WT_REF_DISK
                 && ebpf_get_cell_type(descent->addr) == WT_CELL_ADDR_INT) {
                 WT_ADDR_COPY _addr;
-                bool _ret;
+                bool _copy_ret;
+                int _ret;
                 uint64_t _offset;
                 uint32_t _size, _checksum;
-                _ret = __wt_ref_addr_copy(session, descent, &_addr);
-                if (!_ret) {
+                _copy_ret = __wt_ref_addr_copy(session, descent, &_addr);
+                if (!_copy_ret) {
                     printf("__wt_ref_addr_copy failed\n");
                 }
-                if (_addr.addr[0] != ((uint8_t *)descent->addr)[2]) {
-                    printf("equality failed\n");
-                }
                 _ret = __wt_block_buffer_to_addr(btree->bm->block, _addr.addr, &_offset, &_size, &_checksum);
-                if (!_ret) {
+                if (_ret) {
                     printf("__block_buffer_to_addr failed\n");
                 }
 
