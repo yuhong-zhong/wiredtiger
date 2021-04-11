@@ -52,7 +52,7 @@ struct ebpf_block_header {
     uint32_t checksum; /* 04-07: checksum */
     uint8_t flags; /* 08: flags */
     uint8_t unused[3]; /* 09-11: unused padding */
-}
+};
 
 /*
  * Cell types & macros
