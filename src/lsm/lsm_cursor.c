@@ -1184,7 +1184,7 @@ __clsm_lookup(WT_CURSOR_LSM *clsm, WT_ITEM *value)
         c->set_key(c, &cursor->key);
         if ((ret = c->search(c)) == 0) {
             if (F_ISSET(cbt, WT_CBT_EBPF_SUCCESS)) {
-                memcpy(clsm->ebpf_buffer, cbt->ebpf_buffer, EBPF_BUFFER_SIZE);
+                clsm->ebpf_buffer = cbt->ebpf_buffer;
                 F_SET(clsm, WT_CLSM_EBPF_SUCCESS);
             } else {
                 WT_ERR(c->get_key(c, &cursor->key));
@@ -1206,14 +1206,16 @@ __clsm_lookup(WT_CURSOR_LSM *clsm, WT_ITEM *value)
 
 done:
 err:
-    if (ret == 0) {
-        F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-        F_SET(cursor, WT_CURSTD_KEY_INT);
-        clsm->current = c;
-        if (value == &cursor->value)
-            F_SET(cursor, WT_CURSTD_VALUE_INT);
-    } else if (c != NULL)
-        WT_TRET(c->reset(c));
+    if (!F_ISSET(cbt, WT_CBT_EBPF_SUCCESS)) {
+        if (ret == 0) {
+            F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+            F_SET(cursor, WT_CURSTD_KEY_INT);
+            clsm->current = c;
+            if (value == &cursor->value)
+                F_SET(cursor, WT_CURSTD_VALUE_INT);
+        } else if (c != NULL)
+            WT_TRET(c->reset(c));
+    }
 
     return (ret);
 }
@@ -1238,12 +1240,15 @@ __clsm_search(WT_CURSOR *cursor)
     F_CLR(clsm, WT_CLSM_ITERATE_NEXT | WT_CLSM_ITERATE_PREV);
 
     F_SET(clsm, WT_CLSM_EBPF);
+    F_CLR(clsm, WT_CLSM_EBPF_SUCCESS);
     ret = __clsm_lookup(clsm, &cursor->value);
 
 err:
     __clsm_leave(clsm);
     if (ret == 0 && !F_ISSET(clsm, WT_CLSM_EBPF_SUCCESS))
         __clsm_deleted_decode(clsm, &cursor->value);
+    if (ret == 0 && F_ISSET(clsm, WT_CLSM_EBPF_SUCCESS))
+        cursor->set_value(clsm->ebpf_buffer);
     API_END_RET(session, ret);
 }
 
@@ -1762,10 +1767,7 @@ __wt_clsm_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, cons
      */
     clsm->dsk_gen = 0;
 
-    /*
-     * Allocate buffer for ebpf value
-     */
-    WT_ERR(__wt_calloc(session, EBPF_BUFFER_SIZE, sizeof(uint8_t), &clsm->ebpf_buffer));
+    clsm->ebpf_buffer = NULL;
 
     /* If the next_random option is set, configure a random cursor */
     WT_ERR(__wt_config_gets_def(session, cfg, "next_random", 0, &cval));

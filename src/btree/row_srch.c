@@ -435,13 +435,6 @@ descend:
         if (F_ISSET(cbt, WT_CBT_EBPF)) {
             if (descent->state == WT_REF_DISK
                 && ebpf_get_cell_type(descent->addr) == WT_CELL_ADDR_INT) {
-                WT_ADDR_COPY _addr;
-                bool _ret;
-                _ret = __wt_ref_addr_copy(session, descent, &_addr);
-                if (!_ret) {
-                    __wt_verbose(session, WT_VERB_LSM, "__wt_ref_addr_copy error - uri: %s, depth: %d", 
-                                 cbt->dhandle->name, depth);
-                }
                 /* parse wt cell to get file offset & size */
                 ebpf_ret = ebpf_parse_cell_addr_int(descent->addr, &ebpf_offset, &ebpf_size);
                 if (ebpf_ret < 0 || ebpf_size != EBPF_BLOCK_SIZE) {
