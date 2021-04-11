@@ -201,10 +201,6 @@ __check_leaf_key_range(
     return (0);
 }
 
-int
-__block_buffer_to_addr(
-  uint32_t allocsize, const uint8_t **pp, wt_off_t *offsetp, uint32_t *sizep, uint32_t *checksump);
-
 /*
  * __wt_row_search --
  *     Search a row-store tree for a specific key.
@@ -440,7 +436,6 @@ descend:
             if (descent->state == WT_REF_DISK
                 && ebpf_get_cell_type(descent->addr) == WT_CELL_ADDR_INT) {
                 WT_ADDR_COPY _addr;
-                uint8_t *_addrp = _addr.addr;
                 bool _ret;
                 uint64_t _offset;
                 uint32_t _size, _checksum;
@@ -448,7 +443,7 @@ descend:
                 if (!_ret) {
                     printf("__wt_ref_addr_copy failed\n");
                 }
-                _ret = __block_buffer_to_addr(EBPF_BLOCK_SIZE, &_addrp, &_offset, &_size, &_checksum);
+                _ret = __wt_block_buffer_to_addr(btree->bm->block, _addr.addr, &_offset, &_size, &_checksum);
                 if (!_ret) {
                     printf("__block_buffer_to_addr failed\n");
                 }
