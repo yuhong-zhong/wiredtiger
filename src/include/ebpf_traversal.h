@@ -174,7 +174,7 @@ inline int ebpf_lookup(int fd, uint64_t offset, const uint8_t *key_buf, uint64_t
     }
     read_ret = read(fd, value_buf, EBPF_BUFFER_SIZE);
     if (read_ret != EBPF_BUFFER_SIZE) {
-        printf("ebpf_lookup: read error, errno %d, ret: %ld\n", errno, read_ret);
+        printf("ebpf_lookup: read error, errno %d, ret: %d\n", errno, read_ret);
         return -EBPF_EINVAL;
     }
     sprintf(value_buf, "Hongyi eats Karaage");

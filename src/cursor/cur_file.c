@@ -664,7 +664,7 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
     if (!cbt->ebpf_buffer) {
         printf("failed to allocate ebpf_buffer\n");
     }
-    memset(cbt->ebpf_buffer, 0, PAGE_SIZE);
+    memset(cbt->ebpf_buffer, 0, EBPF_BUFFER_SIZE);
 
     /*
      * Increment the data-source's in-use counter; done now because closing the cursor will
