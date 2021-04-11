@@ -435,20 +435,21 @@ descend:
         if (F_ISSET(cbt, WT_CBT_EBPF)) {
             if (descent->state == WT_REF_DISK
                 && ebpf_get_cell_type(descent->addr) == WT_CELL_ADDR_INT) {
+#ifdef EBPF_DEBUG
                 WT_ADDR_COPY _addr;
                 bool _copy_ret;
-                int _ret;
+                int _convert_ret;
                 uint64_t _offset;
                 uint32_t _size, _checksum;
                 _copy_ret = __wt_ref_addr_copy(session, descent, &_addr);
                 if (!_copy_ret) {
                     printf("__wt_ref_addr_copy failed\n");
                 }
-                _ret = __wt_block_buffer_to_addr(btree->bm->block, _addr.addr, &_offset, &_size, &_checksum);
-                if (_ret) {
+                _convert_ret = __wt_block_buffer_to_addr(btree->bm->block, _addr.addr, &_offset, &_size, &_checksum);
+                if (_convert_ret) {
                     printf("__block_buffer_to_addr failed\n");
                 }
-
+#endif
                 /* parse wt cell to get file offset & size */
                 ebpf_ret = ebpf_parse_cell_addr_int(descent->addr, &ebpf_offset, &ebpf_size);
                 if (ebpf_ret < 0 || ebpf_size != EBPF_BLOCK_SIZE) {
@@ -457,9 +458,11 @@ descend:
                     F_CLR(cbt, WT_CBT_EBPF);
                     goto skip_ebpf;
                 }
+#ifdef EBPF_DEBUG
                 if (ebpf_offset != _offset || ebpf_size != _size) {
                     printf("ebpf_parse_cell_addr_int inconsistent\n");
                 }
+#endif
                 /*
                  * start ebpf traversal
                  */
