@@ -660,7 +660,11 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
     cursor->value_format = btree->value_format;
     cbt->dhandle = session->dhandle;
 
-    WT_ERR(__wt_calloc(session, EBPF_BUFFER_SIZE, sizeof(uint8_t), &cbt->ebpf_buffer));
+    cbt->ebpf_buffer = aligned_alloc(EBPF_BUFFER_SIZE, EBPF_BUFFER_SIZE);
+    if (!cbt->ebpf_buffer) {
+        printf("failed to allocate ebpf_buffer\n");
+    }
+    memset(cbt->ebpf_buffer, 0, PAGE_SIZE);
 
     /*
      * Increment the data-source's in-use counter; done now because closing the cursor will

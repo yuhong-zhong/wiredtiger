@@ -159,7 +159,25 @@ inline int ebpf_parse_cell_addr_int(const uint8_t *cell, uint64_t *offset, uint6
 
 inline int ebpf_lookup(int fd, uint64_t offset, const uint8_t *key_buf, uint64_t key_buf_size, 
                 uint8_t *value_buf, uint64_t value_buf_size) {
-    sprintf(value_buf, "Hongyi Wang");
+    off_t lseek_ret
+    int read_ret;
+
+    if (fd < 0 || key_buf == NULL || value_buf == NULL || value_buf_size < EBPF_BUFFER_SIZE) {
+        printf("ebpf_lookup: illegal arguments\n");
+        return -EBPF_EINVAL;
+    }
+
+    lseek_ret = lseek(fd, 0, SEEK_SET);
+    if (lseek_ret != 0) {
+        printf("ebpf_lookup: lseek error, errno %d, ret: %ld\n", errno, lseek_ret);
+        return -EBPF_EINVAL;
+    }
+    read_ret = read(fd, value_buf, EBPF_BUFFER_SIZE);
+    if (read_ret != EBPF_BUFFER_SIZE) {
+        printf("ebpf_lookup: read error, errno %d, ret: %ld\n", errno, read_ret);
+        return -EBPF_EINVAL;
+    }
+    sprintf(value_buf, "Hongyi eats Karaage");
     return 0;
 }
 
