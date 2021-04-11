@@ -443,6 +443,9 @@ descend:
                 if (!_ret) {
                     printf("__wt_ref_addr_copy failed\n");
                 }
+                if (_addr.addr[0] != ((uint8_t *)descent->addr)[2]) {
+                    printf("equality failed\n");
+                }
                 _ret = __wt_block_buffer_to_addr(btree->bm->block, _addr.addr, &_offset, &_size, &_checksum);
                 if (!_ret) {
                     printf("__block_buffer_to_addr failed\n");
