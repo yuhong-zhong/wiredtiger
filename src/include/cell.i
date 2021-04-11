@@ -756,7 +756,7 @@ copy_cell_restart:
     }
 
     _condition = _condition && (unpack->raw == WT_CELL_ADDR_INT);
-    _condition = _condition && ((cell->__chunk[0] & WT_CELL_SECOND_DESC) == 0);
+    // _condition = _condition && ((cell->__chunk[0] & WT_CELL_SECOND_DESC) == 0);
     /* Check for a validity window. */
     switch (unpack->raw) {
     case WT_CELL_ADDR_DEL:
