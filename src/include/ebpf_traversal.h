@@ -182,11 +182,18 @@ inline int ebpf_vunpack_uint(uint8_t **pp, uint64_t *xp) {
 }
 
 inline int ebpf_addr_to_offset(uint8_t *addr, uint64_t *offset, uint64_t *size) {
-                               uint64_t raw_offset, raw_size, raw_checksum;
+    int ret;
+    uint64_t raw_offset, raw_size, raw_checksum;
 
-    ebpf_vunpack_uint(&addr, &raw_offset);
-    ebpf_vunpack_uint(&addr, &raw_size);
-    ebpf_vunpack_uint(&addr, &raw_checksum);  /* checksum is not used */
+    ret = ebpf_vunpack_uint(&addr, &raw_offset);
+    if (ret < 0)
+        return ret;
+    ret = ebpf_vunpack_uint(&addr, &raw_size);
+    if (ret < 0)
+        return ret;
+    ret = ebpf_vunpack_uint(&addr, &raw_checksum);  /* checksum is not used */
+    if (ret < 0)
+        return ret;
     if (raw_size == 0) {
         *offset = 0;
         *size = 0;
