@@ -143,7 +143,7 @@ inline int ebpf_unpack_posint(uint8_t **pp, uint64_t *retp) {
     return 0;
 }
 
-inline int ebpf_vunpack_uint(uint8_t **pp, uint64_t *xp) {
+inline int ebpf_vunpack_uint_(uint8_t **pp, uint64_t *xp) {
     uint8_t *p;
     int ret;
 
@@ -185,13 +185,13 @@ inline int ebpf_addr_to_offset(uint8_t *addr, uint64_t *offset, uint64_t *size) 
     int ret;
     uint64_t raw_offset, raw_size, raw_checksum;
 
-    ret = ebpf_vunpack_uint(&addr, &raw_offset);
+    ret = ebpf_vunpack_uint_(&addr, &raw_offset);
     if (ret < 0)
         return ret;
-    ret = ebpf_vunpack_uint(&addr, &raw_size);
+    ret = ebpf_vunpack_uint_(&addr, &raw_size);
     if (ret < 0)
         return ret;
-    ret = ebpf_vunpack_uint(&addr, &raw_checksum);  /* checksum is not used */
+    ret = ebpf_vunpack_uint_(&addr, &raw_checksum);  /* checksum is not used */
     if (ret < 0)
         return ret;
     if (raw_size == 0) {
@@ -235,7 +235,7 @@ inline int ebpf_parse_cell_addr(uint8_t **cellp, uint64_t *offset, uint64_t *siz
     }
 
     /* the cell is followed by data length and a chunk of data */
-    ret = ebpf_vunpack_uint(&p, &addr_len);
+    ret = ebpf_vunpack_uint_(&p, &addr_len);
     if (ret != 0) {
         return ret;
     }
@@ -268,7 +268,7 @@ inline int ebpf_parse_cell_key(uint8_t **cellp, uint8_t **key, uint64_t *key_siz
     /* key cell does not have the second descriptor byte */
 
     /* the cell is followed by data length and a chunk of data */
-    ret = ebpf_vunpack_uint(&p, &data_len);
+    ret = ebpf_vunpack_uint_(&p, &data_len);
     if (ret != 0) {
         return ret;
     }
@@ -327,7 +327,7 @@ inline int ebpf_parse_cell_value(uint8_t **cellp, uint8_t **value, uint64_t *val
     }
 
     /* the cell is followed by data length and a chunk of data */
-    ret = ebpf_vunpack_uint(&p, &data_len);
+    ret = ebpf_vunpack_uint_(&p, &data_len);
     if (ret != 0) {
         return ret;
     }
