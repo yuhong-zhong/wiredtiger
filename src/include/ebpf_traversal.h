@@ -143,7 +143,7 @@ inline int ebpf_unpack_posint(uint8_t **pp, uint64_t *retp) {
     return 0;
 }
 
-extern inline int ebpf_vunpack_uint(uint8_t **pp, uint64_t *xp) {
+static inline int ebpf_vunpack_uint(uint8_t **pp, uint64_t *xp) {
     uint8_t *p;
     int ret;
 
