@@ -119,8 +119,8 @@ static inline int ebpf_lex_compare(const uint8_t *key_1, uint64_t key_len_1,
     /* extracted from https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/include/btree_cmp.i#L90 
      * ( might consider replace with vector operation :) although not sure whether ebpf supports it )
      */
-    uint64_t len = (key_len_1 > key_len_2) ? key_len_2 : key_len_1, maxlen = EBPF_KV_MAX_LEN;
-    for (; len > 0 && maxlen > 0; --len, --max_len, ++key_1, ++key_2)
+    uint64_t len = (key_len_1 > key_len_2) ? key_len_2 : key_len_1, max_len = EBPF_KV_MAX_LEN;
+    for (; len > 0 && max_len > 0; --len, --max_len, ++key_1, ++key_2)
         if (*key_1 != *key_2)
             return (*key_1 < *key_2 ? -1 : 1);
     return ((key_len_1 == key_len_2) ? 0 : (key_len_1 < key_len_2) ? -1 : 1);
@@ -358,7 +358,7 @@ inline int ebpf_parse_cell_short_value(const uint8_t **cellp, const uint8_t **va
 }
 
 inline int ebpf_get_page_type(const uint8_t *page_image) {
-    const ebpf_page_header *header = page_image;  /* page disk image starts with page header */
+    const struct ebpf_page_header *header = page_image;  /* page disk image starts with page header */
     return header->type;
 }
 
@@ -373,7 +373,7 @@ inline int ebpf_search_int_page(const uint8_t *page_image,
                                 const uint8_t *user_key_buf, uint64_t user_key_size,
                                 uint64_t *descent_offset, uint64_t *descent_size) {
     const uint8_t *p = page_image;
-    const ebpf_page_header *header = p;
+    const struct ebpf_page_header *header = (const struct ebpf_page_header *)page_image;
     uint32_t nr_kv = header->u.entries / 2, i, ii;
     uint64_t prev_cell_descent_offset = 0, prev_cell_descent_size = 0;
     int ret;
@@ -449,8 +449,8 @@ inline int ebpf_search_int_page(const uint8_t *page_image,
             *descent_size = prev_cell_descent_size;
             return 0;
         }
-        prev_cell_descent_offset = descent_offset;
-        prev_cell_descent_size = descent_size;
+        prev_cell_descent_offset = cell_descent_offset;
+        prev_cell_descent_size = cell_descent_size;
     }
     *descent_offset = prev_cell_descent_offset;
     *descent_size = prev_cell_descent_size;
@@ -469,9 +469,9 @@ wt_row: https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/include/
 */
 inline int ebpf_search_leaf_page(const uint8_t *page_image, 
                                  const uint8_t *user_key_buf, uint64_t user_key_size,
-                                 uint64_t **value_buf, uint64_t *value_size) {
+                                 uint8_t **value_buf, uint64_t *value_size) {
     const uint8_t *p = page_image;
-    const ebpf_page_header *header = p;
+    const struct ebpf_page_header *header = (const struct ebpf_page_header *)page_image;
     uint32_t nr_cell = header->u.entries, i, ii;
     int ret;
 
@@ -613,7 +613,7 @@ inline int ebpf_lookup(int fd, uint64_t offset, const uint8_t *key_buf, uint64_t
             return ret;
 
         default:
-            printf("ebpf_lookup: unsupported page type 0x%lx\n", ebpf_get_page_type(value_buf))
+            printf("ebpf_lookup: unsupported page type %d\n", ebpf_get_page_type(value_buf));
         }
     }
     /* too many levels / no leaf page */
