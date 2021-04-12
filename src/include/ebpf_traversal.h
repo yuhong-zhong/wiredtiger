@@ -114,7 +114,7 @@ struct ebpf_block_header {
 /* Extract bits <start> to <end> from a value (counting from LSB == 0). */
 #define GET_BITS(x, start, end) (((uint64_t)(x) & ((1U << (start)) - 1U)) >> (end))
 
-static inline int ebpf_lex_compare(const uint8_t *key_1, uint64_t key_len_1,
+inline int ebpf_lex_compare(const uint8_t *key_1, uint64_t key_len_1,
                                    const uint8_t *key_2, uint64_t key_len_2) {
     /* extracted from https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/include/btree_cmp.i#L90 
      * ( might consider replace with vector operation :) although not sure whether ebpf supports it )
@@ -358,7 +358,7 @@ inline int ebpf_parse_cell_short_value(const uint8_t **cellp, const uint8_t **va
 }
 
 inline int ebpf_get_page_type(const uint8_t *page_image) {
-    const struct ebpf_page_header *header = page_image;  /* page disk image starts with page header */
+    const struct ebpf_page_header *header = (const struct ebpf_page_header *)page_image;  /* page disk image starts with page header */
     return header->type;
 }
 
@@ -492,7 +492,7 @@ inline int ebpf_search_leaf_page(const uint8_t *page_image,
     for (i = 0, ii = EBPF_BLOCK_SIZE; i < nr_cell && ii > 0; ++i, --ii) {
         const uint8_t *cell_key_buf;
         uint64_t cell_key_size;
-        const uint8_t *cell_value_buf;
+        uint8_t *cell_value_buf;
         uint64_t cell_value_size;
         int cmp;
 
