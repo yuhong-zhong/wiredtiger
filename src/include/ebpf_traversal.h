@@ -114,8 +114,8 @@ struct ebpf_block_header {
 /* Extract bits <start> to <end> from a value (counting from LSB == 0). */
 #define GET_BITS(x, start, end) (((uint64_t)(x) & ((1U << (start)) - 1U)) >> (end))
 
-inline int ebpf_lex_compare(const uint8_t *key_1, uint64_t key_len_1,
-                                   const uint8_t *key_2, uint64_t key_len_2) {
+inline int ebpf_lex_compare(uint8_t *key_1, uint64_t key_len_1,
+                            uint8_t *key_2, uint64_t key_len_2) {
     /* extracted from https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/include/btree_cmp.i#L90 
      * ( might consider replace with vector operation :) although not sure whether ebpf supports it )
      */
@@ -126,10 +126,10 @@ inline int ebpf_lex_compare(const uint8_t *key_1, uint64_t key_len_1,
     return ((key_len_1 == key_len_2) ? 0 : (key_len_1 < key_len_2) ? -1 : 1);
 }
 
-inline int ebpf_unpack_posint(const uint8_t **pp, uint64_t *retp) {
+inline int ebpf_unpack_posint(uint8_t **pp, uint64_t *retp) {
     uint64_t x;
     uint8_t len, max_len = 16;  /* max_len is set to pass the ebpf verifier */
-    const uint8_t *p;
+    uint8_t *p;
 
     /* There are four length bits in the first byte. */
     p = *pp;
@@ -143,8 +143,8 @@ inline int ebpf_unpack_posint(const uint8_t **pp, uint64_t *retp) {
     return 0;
 }
 
-inline int ebpf_vunpack_uint(const uint8_t **pp, uint64_t *xp) {
-    const uint8_t *p;
+inline int ebpf_vunpack_uint(uint8_t **pp, uint64_t *xp) {
+    uint8_t *p;
     int ret;
 
     /* encoding scheme: https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/include/intpack.i#L10 */
@@ -181,8 +181,8 @@ inline int ebpf_vunpack_uint(const uint8_t **pp, uint64_t *xp) {
     return 0;
 }
 
-inline int ebpf_addr_to_offset(const uint8_t *addr, uint64_t *offset, uint64_t *size) {
-    uint64_t raw_offset, raw_size, raw_checksum;
+inline int ebpf_addr_to_offset(uint8_t *addr, uint64_t *offset, uint64_t *size) {
+                               uint64_t raw_offset, raw_size, raw_checksum;
 
     ebpf_vunpack_uint(&addr, &raw_offset);
     ebpf_vunpack_uint(&addr, &raw_size);
@@ -198,13 +198,13 @@ inline int ebpf_addr_to_offset(const uint8_t *addr, uint64_t *offset, uint64_t *
     return 0;
 }
 
-inline int ebpf_get_cell_type(const uint8_t *cell) {
+inline int ebpf_get_cell_type(uint8_t *cell) {
     return EBPF_CELL_SHORT_TYPE(cell[0]) ? EBPF_CELL_SHORT_TYPE(cell[0]) : EBPF_CELL_TYPE(cell[0]);
 }
 
-inline int ebpf_parse_cell_addr(const uint8_t **cellp, uint64_t *offset, uint64_t *size, 
+inline int ebpf_parse_cell_addr(uint8_t **cellp, uint64_t *offset, uint64_t *size, 
                                 bool update_pointer) {
-    const uint8_t *cell = *cellp, *p = *cellp, *addr;
+    uint8_t *cell = *cellp, *p = *cellp, *addr;
     uint8_t flags;
     uint64_t addr_len;
     int ret;
@@ -245,9 +245,9 @@ inline int ebpf_parse_cell_addr(const uint8_t **cellp, uint64_t *offset, uint64_
     return 0;
 }
 
-inline int ebpf_parse_cell_key(const uint8_t **cellp, const uint8_t **key, uint64_t *key_size, 
+inline int ebpf_parse_cell_key(uint8_t **cellp, uint8_t **key, uint64_t *key_size, 
                                bool update_pointer) {
-    const uint8_t *cell = *cellp, *p = *cellp;
+    uint8_t *cell = *cellp, *p = *cellp;
     uint64_t data_len;
     int ret;
 
@@ -275,9 +275,9 @@ inline int ebpf_parse_cell_key(const uint8_t **cellp, const uint8_t **key, uint6
     return 0;
 }
 
-inline int ebpf_parse_cell_short_key(const uint8_t **cellp, const uint8_t **key, uint64_t *key_size, 
+inline int ebpf_parse_cell_short_key(uint8_t **cellp, uint8_t **key, uint64_t *key_size, 
                                      bool update_pointer) {
-    const uint8_t *cell = *cellp, *p = *cellp;
+    uint8_t *cell = *cellp, *p = *cellp;
     uint64_t data_len;
     int ret;
 
@@ -296,9 +296,9 @@ inline int ebpf_parse_cell_short_key(const uint8_t **cellp, const uint8_t **key,
     return 0;
 }
 
-inline int ebpf_parse_cell_value(const uint8_t **cellp, const uint8_t **value, uint64_t *value_size, 
+inline int ebpf_parse_cell_value(uint8_t **cellp, uint8_t **value, uint64_t *value_size, 
                                  bool update_pointer) {
-    const uint8_t *cell = *cellp, *p = *cellp;
+    uint8_t *cell = *cellp, *p = *cellp;
     uint8_t flags;
     uint64_t data_len;
     int ret;
@@ -336,9 +336,9 @@ inline int ebpf_parse_cell_value(const uint8_t **cellp, const uint8_t **value, u
     return 0;
 }
 
-inline int ebpf_parse_cell_short_value(const uint8_t **cellp, const uint8_t **value, uint64_t *value_size, 
+inline int ebpf_parse_cell_short_value(uint8_t **cellp, uint8_t **value, uint64_t *value_size, 
                                        bool update_pointer) {
-    const uint8_t *cell = *cellp, *p = *cellp;
+    uint8_t *cell = *cellp, *p = *cellp;
     uint64_t data_len;
     int ret;
 
@@ -357,8 +357,8 @@ inline int ebpf_parse_cell_short_value(const uint8_t **cellp, const uint8_t **va
     return 0;
 }
 
-inline int ebpf_get_page_type(const uint8_t *page_image) {
-    const struct ebpf_page_header *header = (const struct ebpf_page_header *)page_image;  /* page disk image starts with page header */
+inline int ebpf_get_page_type(uint8_t *page_image) {
+    struct ebpf_page_header *header = (struct ebpf_page_header *)page_image;  /* page disk image starts with page header */
     return header->type;
 }
 
@@ -369,11 +369,11 @@ WT_CELL_FOREACH_ADDR: https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.
 __wt_cell_unpack_safe: https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/include/cell.i#L663
 __wt_row_search: https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/btree/row_srch.c#L331
 */
-inline int ebpf_search_int_page(const uint8_t *page_image, 
-                                const uint8_t *user_key_buf, uint64_t user_key_size,
+inline int ebpf_search_int_page(uint8_t *page_image, 
+                                uint8_t *user_key_buf, uint64_t user_key_size,
                                 uint64_t *descent_offset, uint64_t *descent_size) {
-    const uint8_t *p = page_image;
-    const struct ebpf_page_header *header = (const struct ebpf_page_header *)page_image;
+    uint8_t *p = page_image;
+    struct ebpf_page_header *header = (struct ebpf_page_header *)page_image;
     uint32_t nr_kv = header->u.entries / 2, i, ii;
     uint64_t prev_cell_descent_offset = 0, prev_cell_descent_size = 0;
     int ret;
@@ -393,7 +393,7 @@ inline int ebpf_search_int_page(const uint8_t *page_image,
 
     /* traverse all key value pairs */
     for (i = 0, ii = EBPF_BLOCK_SIZE; i < nr_kv && ii > 0; ++i, --ii) {
-        const uint8_t *cell_key_buf;
+        uint8_t *cell_key_buf;
         uint64_t cell_key_size;
         uint64_t cell_descent_offset, cell_descent_size;
         int cmp;
@@ -467,11 +467,11 @@ __wt_row_search: https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src
 wt_row: https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/include/btmem.h#L953
     https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/include/btree.i#L885
 */
-inline int ebpf_search_leaf_page(const uint8_t *page_image, 
-                                 const uint8_t *user_key_buf, uint64_t user_key_size,
+inline int ebpf_search_leaf_page(uint8_t *page_image, 
+                                 uint8_t *user_key_buf, uint64_t user_key_size,
                                  uint8_t **value_buf, uint64_t *value_size) {
-    const uint8_t *p = page_image;
-    const struct ebpf_page_header *header = (const struct ebpf_page_header *)page_image;
+    uint8_t *p = page_image;
+    struct ebpf_page_header *header = (struct ebpf_page_header *)page_image;
     uint32_t nr_cell = header->u.entries, i, ii;
     int ret;
 
@@ -490,7 +490,7 @@ inline int ebpf_search_leaf_page(const uint8_t *page_image,
 
     /* traverse all key value pairs */
     for (i = 0, ii = EBPF_BLOCK_SIZE; i < nr_cell && ii > 0; ++i, --ii) {
-        const uint8_t *cell_key_buf;
+        uint8_t *cell_key_buf;
         uint64_t cell_key_size;
         uint8_t *cell_value_buf;
         uint64_t cell_value_size;
@@ -555,7 +555,7 @@ inline int ebpf_search_leaf_page(const uint8_t *page_image,
     return EBPF_NOT_FOUND;  /* need to return a positive value */
 }
 
-inline int ebpf_lookup(int fd, uint64_t offset, const uint8_t *key_buf, uint64_t key_buf_size, 
+inline int ebpf_lookup(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_buf_size, 
                        uint8_t *value_buf, uint64_t value_buf_size) {
     uint64_t page_offset = offset, page_size = EBPF_BLOCK_SIZE;
     uint8_t *page_value_buf;
