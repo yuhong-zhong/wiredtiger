@@ -451,7 +451,7 @@ descend:
                 }
 #endif
                 /* parse wt cell to get file offset & size */
-                ebpf_ret = ebpf_parse_cell_addr_int(&descent->addr, &ebpf_offset, &ebpf_size, false);
+                ebpf_ret = ebpf_parse_cell_addr_int((const uint8_t **)&descent->addr, &ebpf_offset, &ebpf_size, false);
                 if (ebpf_ret < 0 || ebpf_size != EBPF_BLOCK_SIZE) {
                     __wt_verbose(session, WT_VERB_LSM, "ebpf_parse_cell_addr_int error - uri: %s, depth: %d, ret: %d, size: %ld", 
                                  cbt->dhandle->name, depth, ebpf_ret, ebpf_size);

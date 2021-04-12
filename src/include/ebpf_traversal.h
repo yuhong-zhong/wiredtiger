@@ -6,6 +6,9 @@
 
 #define EBPF_BUFFER_SIZE 4096
 #define EBPF_BLOCK_SIZE 512
+/* page is always block size */
+#define EBPF_MAX_DEPTH 512
+#define EBPF_KV_MAX_LEN 512
 
 
 /************************************************
@@ -45,6 +48,15 @@
 };
 #define EBPF_PAGE_HEADER_SIZE 28
 
+#define EBPF_PAGE_INVALID 0       /* Invalid page */
+#define EBPF_PAGE_BLOCK_MANAGER 1 /* Block-manager page */
+#define EBPF_PAGE_COL_FIX 2       /* Col-store fixed-len leaf */
+#define EBPF_PAGE_COL_INT 3       /* Col-store internal page */
+#define EBPF_PAGE_COL_VAR 4       /* Col-store var-length leaf page */
+#define EBPF_PAGE_OVFL 5          /* Overflow page */
+#define EBPF_PAGE_ROW_INT 6       /* Row-store internal page */
+#define EBPF_PAGE_ROW_LEAF 7      /* Row-store leaf page */
+
 struct ebpf_block_header {
     /* copy from https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/include/block.h#L329 */
 
@@ -53,18 +65,43 @@ struct ebpf_block_header {
     uint8_t flags; /* 08: flags */
     uint8_t unused[3]; /* 09-11: unused padding */
 };
+#define EBPF_BLOCK_HEADER_SIZE 12
 
 /*
  * Cell types & macros
  * extract from https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/include/cell.h#L10
  */
+#define EBPF_CELL_KEY_SHORT 0x01     /* Short key */
+#define EBPF_CELL_KEY_SHORT_PFX 0x02 /* Short key with prefix byte */
+#define EBPF_CELL_VALUE_SHORT 0x03   /* Short data */
 #define EBPF_CELL_SHORT_TYPE(v) ((v)&0x03U)
 
-#define EBPF_CELL_ADDR_INT (1 << 4)
-#define EBPF_CELL_TYPE_MASK (0x0fU << 4)
-#define EBPF_CELL_TYPE(v) ((v)&WT_CELL_TYPE_MASK)
+#define EBPF_CELL_SHORT_MAX 63  /* Maximum short key/value */
+#define EBPF_CELL_SHORT_SHIFT 2 /* Shift for short key/value */
 
-/* 
+#define EBPF_CELL_64V 0x04         /* Associated value */
+#define EBPF_CELL_SECOND_DESC 0x08 /* Second descriptor byte */
+
+#define EBPF_CELL_ADDR_DEL (0)            /* Address: deleted */
+#define EBPF_CELL_ADDR_INT (1 << 4)       /* Address: internal  */
+#define EBPF_CELL_ADDR_LEAF (2 << 4)      /* Address: leaf */
+#define EBPF_CELL_ADDR_LEAF_NO (3 << 4)   /* Address: leaf no overflow */
+#define EBPF_CELL_DEL (4 << 4)            /* Deleted value */
+#define EBPF_CELL_KEY (5 << 4)            /* Key */
+#define EBPF_CELL_KEY_OVFL (6 << 4)       /* Overflow key */
+#define EBPF_CELL_KEY_OVFL_RM (12 << 4)   /* Overflow key (removed) */
+#define EBPF_CELL_KEY_PFX (7 << 4)        /* Key with prefix byte */
+#define EBPF_CELL_VALUE (8 << 4)          /* Value */
+#define EBPF_CELL_VALUE_COPY (9 << 4)     /* Value copy */
+#define EBPF_CELL_VALUE_OVFL (10 << 4)    /* Overflow value */
+#define EBPF_CELL_VALUE_OVFL_RM (11 << 4) /* Overflow value (removed) */
+
+#define EBPF_CELL_TYPE_MASK (0x0fU << 4)
+#define EBPF_CELL_TYPE(v) ((v)&EBPF_CELL_TYPE_MASK)
+
+#define EBPF_CELL_SIZE_ADJUST (EBPF_CELL_SHORT_MAX + 1)
+
+/*
  * Variable-sized unpacking for unsigned integers
  * extracted from https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/include/intpack.i#L254
  */
@@ -76,6 +113,18 @@ struct ebpf_block_header {
 
 /* Extract bits <start> to <end> from a value (counting from LSB == 0). */
 #define GET_BITS(x, start, end) (((uint64_t)(x) & ((1U << (start)) - 1U)) >> (end))
+
+static inline int ebpf_lex_compare(const uint8_t *key_1, uint64_t key_len_1,
+                                   const uint8_t *key_2, uint64_t key_len_2) {
+    /* extracted from https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/include/btree_cmp.i#L90 
+     * ( might consider replace with vector operation :) although not sure whether ebpf supports it )
+     */
+    uint64_t len = (key_len_1 > key_len_2) ? key_len_2 : key_len_1, maxlen = EBPF_KV_MAX_LEN;
+    for (; len > 0 && maxlen > 0; --len, --max_len, ++key_1, ++key_2)
+        if (*key_1 != *key_2)
+            return (*key_1 < *key_2 ? -1 : 1);
+    return ((key_len_1 == key_len_2) ? 0 : (key_len_1 < key_len_2) ? -1 : 1);
+}
 
 inline int ebpf_unpack_posint(const uint8_t **pp, uint64_t *retp) {
     uint64_t x;
@@ -150,25 +199,27 @@ inline int ebpf_addr_to_offset(const uint8_t *addr, uint64_t *offset, uint64_t *
 }
 
 inline int ebpf_get_cell_type(const uint8_t *cell) {
-    return WT_CELL_SHORT_TYPE(cell[0]) ? WT_CELL_SHORT_TYPE(cell[0]) : WT_CELL_TYPE(cell[0]);
+    return EBPF_CELL_SHORT_TYPE(cell[0]) ? EBPF_CELL_SHORT_TYPE(cell[0]) : EBPF_CELL_TYPE(cell[0]);
 }
 
-inline int ebpf_parse_cell_addr_int(const uint8_t **cellp, uint64_t *offset, uint64_t *size, bool update_pointer) {
+inline int ebpf_parse_cell_addr(const uint8_t **cellp, uint64_t *offset, uint64_t *size, 
+                                bool update_pointer) {
     const uint8_t *cell = *cellp, *p = *cellp, *addr;
     uint8_t flags;
     uint64_t addr_len;
     int ret;
 
-    /* verify cell type & validity window & RLE in descriptor byte (1B) */
-    if ((WT_CELL_SHORT_TYPE(cell[0]) != 0)
-        || (WT_CELL_TYPE(cell[0]) != WT_CELL_ADDR_INT)
-        || ((cell[0] & WT_CELL_64V) != 0)) {
+    /* read the first cell descriptor byte (cell type, RLE count) */
+    if ((ebpf_get_cell_type(cell) != EBPF_CELL_ADDR_INT
+         && ebpf_get_cell_type(cell) != WT_CELL_ADDR_LEAF
+         && ebpf_get_cell_type(cell) != WT_CELL_ADDR_LEAF_NO)
+        || ((cell[0] & EBPF_CELL_64V) != 0)) {
         return -EBPF_EINVAL;
     }
     p += 1;
 
-    if ((cell[0] & WT_CELL_SECOND_DESC) != 0) {
-        /* the second descriptor byte */
+    /* read the second cell descriptor byte (if present) */
+    if ((cell[0] & EBPF_CELL_SECOND_DESC) != 0) {
         flags = *p;
         p += 1;
         if (flags != 0) {
@@ -194,28 +245,379 @@ inline int ebpf_parse_cell_addr_int(const uint8_t **cellp, uint64_t *offset, uin
     return 0;
 }
 
-inline int ebpf_lookup(int fd, uint64_t offset, const uint8_t *key_buf, uint64_t key_buf_size, 
-                uint8_t *value_buf, uint64_t value_buf_size) {
-    off_t lseek_ret;
-    int read_ret;
+inline int ebpf_parse_cell_key(const uint8_t **cellp, const uint8_t **key, uint64_t *key_size, 
+                               bool update_pointer) {
+    const uint8_t *cell = *cellp, *p = *cellp;
+    uint64_t data_len;
+    int ret;
 
-    if (fd < 0 || key_buf == NULL || value_buf == NULL || value_buf_size < EBPF_BUFFER_SIZE) {
+    /* read the first cell descriptor byte (cell type, RLE count) */
+    if ((ebpf_get_cell_type(cell) != EBPF_CELL_KEY)
+        || ((cell[0] & EBPF_CELL_64V) != 0)) {
+        return -EBPF_EINVAL;
+    }
+    p += 1;
+
+    /* key cell does not have the second descriptor byte */
+
+    /* the cell is followed by data length and a chunk of data */
+    ret = ebpf_vunpack_uint(&p, &data_len);
+    if (ret != 0) {
+        return ret;
+    }
+    data_len += WT_CELL_SIZE_ADJUST;
+
+    *key = p;
+    *key_size = data_len;
+
+    if (update_pointer)
+        *cellp = p + data_len;
+    return 0;
+}
+
+inline int ebpf_parse_cell_short_key(const uint8_t **cellp, const uint8_t **key, uint64_t *key_size, 
+                                     bool update_pointer) {
+    const uint8_t *cell = *cellp, *p = *cellp;
+    uint64_t data_len;
+    int ret;
+
+    /* read the first cell descriptor byte */
+    if (ebpf_get_cell_type(cell) != EBPF_CELL_KEY_SHORT) {
+        return -EBPF_EINVAL;
+    }
+    data_len = cell[0] >> EBPF_CELL_SHORT_SHIFT;
+    *key_size = data_len;
+
+    p += 1;
+    *key = p;
+
+    if (update_pointer)
+        *cellp = p + data_len;
+    return 0;
+}
+
+inline int ebpf_parse_cell_value(const uint8_t **cellp, const uint8_t **value, uint64_t *value_size, 
+                                 bool update_pointer) {
+    const uint8_t *cell = *cellp, *p = *cellp;
+    uint8_t flags;
+    uint64_t data_len;
+    int ret;
+
+    /* read the first cell descriptor byte (cell type, RLE count) */
+    if ((ebpf_get_cell_type(cell) != EBPF_CELL_VALUE)
+        || ((cell[0] & EBPF_CELL_64V) != 0)) {
+        return -EBPF_EINVAL;
+    }
+    p += 1;
+
+    /* read the second cell descriptor byte (if present) */
+    if ((cell[0] & EBPF_CELL_SECOND_DESC) != 0) {
+        flags = *p;
+        p += 1;
+        if (flags != 0) {
+            return -EBPF_EINVAL;
+        }
+    }
+
+    /* the cell is followed by data length and a chunk of data */
+    ret = ebpf_vunpack_uint(&p, &data_len);
+    if (ret != 0) {
+        return ret;
+    }
+    if ((cell[0] & EBPF_CELL_SECOND_DESC) == 0) {
+        data_len += WT_CELL_SIZE_ADJUST;
+    }
+
+    *value = p;
+    *value_size = data_len;
+
+    if (update_pointer)
+        *cellp = p + data_len;
+    return 0;
+}
+
+inline int ebpf_parse_cell_short_value(const uint8_t **cellp, const uint8_t **value, uint64_t *value_size, 
+                                       bool update_pointer) {
+    const uint8_t *cell = *cellp, *p = *cellp;
+    uint64_t data_len;
+    int ret;
+
+    /* read the first cell descriptor byte */
+    if (ebpf_get_cell_type(cell) != EBPF_CELL_VALUE_SHORT) {
+        return -EBPF_EINVAL;
+    }
+    data_len = cell[0] >> EBPF_CELL_SHORT_SHIFT;
+    *value_size = data_len;
+
+    p += 1;
+    *value = p;
+
+    if (update_pointer)
+        *cellp = p + data_len;
+    return 0;
+}
+
+inline int ebpf_get_page_type(const uint8_t *page_image) {
+    const ebpf_page_header *header = page_image;  /* page disk image starts with page header */
+    return header->type;
+}
+
+/*
+__wt_page_inmem: https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/btree/bt_page.c#L128
+__inmem_row_int: https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/btree/bt_page.c#L375
+WT_CELL_FOREACH_ADDR: https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/include/cell.i#L1155
+__wt_cell_unpack_safe: https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/include/cell.i#L663
+__wt_row_search: https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/btree/row_srch.c#L331
+*/
+inline int ebpf_search_int_page(const uint8_t *page_image, 
+                                const uint8_t *user_key_buf, uint64_t user_key_size,
+                                uint64_t *descent_offset, uint64_t *descent_size) {
+    const uint8_t *p = page_image;
+    const ebpf_page_header *header = p;
+    uint32_t nr_kv = header->u.entries / 2, i, ii;
+    uint64_t prev_cell_descent_offset = 0, prev_cell_descent_size = 0;
+    int ret;
+
+    if (page_image == NULL
+        || user_key_buf == NULL
+        || user_key_size == 0
+        || ebpf_get_page_type(page_image) != EBPF_PAGE_ROW_INT
+        || descent_offset == NULL
+        || descent_size == NULL) {
+        printf("ebpf_search_int_page: invalid arguments\n");
+        return -EBPF_EINVAL;
+    }
+
+    /* skip page header + block header */
+    p += (EBPF_PAGE_HEADER_SIZE + EBPF_BLOCK_HEADER_SIZE);
+
+    /* traverse all key value pairs */
+    for (i = 0, ii = EBPF_BLOCK_SIZE; i < nr_kv && ii > 0; ++i, --ii) {
+        const uint8_t *cell_key_buf;
+        uint64_t cell_key_size;
+        uint64_t cell_descent_offset, cell_descent_size;
+        int cmp;
+
+        /*
+         * searching for the corresponding descent.
+         * each cell (key, addr) corresponds to key range [key, next_key)
+         * extracted from https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/btree/row_srch.c#L331
+         */
+
+        /* parse key cell */
+        switch (ebpf_get_cell_type(p)) {
+        case EBPF_CELL_KEY:
+            ret = ebpf_parse_cell_key(&p, &cell_key_buf, &cell_key_size, true);
+            if (ret < 0) {
+                printf("ebpf_search_int_page: ebpf_parse_cell_key failed, kv %d, ret %d\n", i, ret);
+                return ret;
+            }
+            break;
+        case EBPF_CELL_KEY_SHORT:
+            ret = ebpf_parse_cell_short_key(&p, &cell_key_buf, &cell_key_size, true);
+            if (ret < 0) {
+                printf("ebpf_search_int_page: ebpf_parse_cell_short_key failed, kv %d, ret %d\n", i, ret);
+                return ret;
+            }
+            break;
+        default:
+            return -EBPF_EINVAL;
+        }
+        /* parse addr cell */
+        ret = ebpf_parse_cell_addr(&p, &cell_descent_offset, &cell_descent_size, true);
+        if (ret < 0) {
+            printf("ebpf_search_int_page: ebpf_parse_cell_addr failed, kv %d, ret %d\n", i, ret);
+            return ret;
+        }
+
+        /*
+         * compare with user key
+         * extracted from https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/btree/row_srch.c#L331
+         */
+        if (i == 0)
+            cmp = 1;  /* 0-th key is MIN */
+        else
+            cmp = ebpf_lex_compare(user_key_buf, user_key_size, cell_key_buf, cell_key_size);
+        if (cmp == 0) {
+            /* user key = cell key */
+            *descent_offset = cell_descent_offset;
+            *descent_size = cell_descent_size;
+            return 0;
+        } else if (cmp < 0) {
+            /* user key < cell key */
+            *descent_offset = prev_cell_descent_offset;
+            *descent_size = prev_cell_descent_size;
+            return 0;
+        }
+        prev_cell_descent_offset = descent_offset;
+        prev_cell_descent_size = descent_size;
+    }
+    *descent_offset = prev_cell_descent_offset;
+    *descent_size = prev_cell_descent_size;
+    return 0;
+}
+
+/*
+__wt_page_inmem: https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/btree/bt_page.c#L128
+__inmem_row_leaf_entries: https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/btree/bt_page.c#L492
+__inmem_row_leaf: https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/btree/bt_page.c#L532
+WT_CELL_FOREACH_KV: https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/include/cell.i#L1163
+__wt_cell_unpack_safe: https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/include/cell.i#L663
+__wt_row_search: https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/btree/row_srch.c#L331
+wt_row: https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/include/btmem.h#L953
+    https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/include/btree.i#L885
+*/
+inline int ebpf_search_leaf_page(const uint8_t *page_image, 
+                                 const uint8_t *user_key_buf, uint64_t user_key_size,
+                                 uint64_t **value_buf, uint64_t *value_size) {
+    const uint8_t *p = page_image;
+    const ebpf_page_header *header = p;
+    uint32_t nr_cell = header->u.entries, i, ii;
+    int ret;
+
+    if (page_image == NULL
+        || user_key_buf == NULL
+        || user_key_size == 0
+        || ebpf_get_page_type(page_image) != EBPF_PAGE_ROW_LEAF
+        || value_buf == NULL
+        || value_size == NULL) {
+        printf("ebpf_search_leaf_page: invalid arguments\n");
+        return -EBPF_EINVAL;
+    }
+
+    /* skip page header + block header */
+    p += (EBPF_PAGE_HEADER_SIZE + EBPF_BLOCK_HEADER_SIZE);
+
+    /* traverse all key value pairs */
+    for (i = 0, ii = EBPF_BLOCK_SIZE; i < nr_cell && ii > 0; ++i, --ii) {
+        const uint8_t *cell_key_buf;
+        uint64_t cell_key_size;
+        const uint8_t *cell_value_buf;
+        uint64_t cell_value_size;
+        int cmp;
+
+        /* parse key cell */
+        switch (ebpf_get_cell_type(p)) {
+        case EBPF_CELL_KEY:
+            ret = ebpf_parse_cell_key(&p, &cell_key_buf, &cell_key_size, true);
+            if (ret < 0) {
+                printf("ebpf_search_leaf_page: ebpf_parse_cell_key failed, cell %d, ret %d\n", i, ret);
+                return ret;
+            }
+            break;
+        case EBPF_CELL_KEY_SHORT:
+            ret = ebpf_parse_cell_short_key(&p, &cell_key_buf, &cell_key_size, true);
+            if (ret < 0) {
+                printf("ebpf_search_leaf_page: ebpf_parse_cell_short_key failed, cell %d, ret %d\n", i, ret);
+                return ret;
+            }
+            break;
+        default:
+            printf("ebpf_search_leaf_page: invalid cell type %d, cell %d, ret %d\n", ebpf_get_cell_type(p), i, ret);
+            return -EBPF_EINVAL;
+        }
+
+        /* parse value cell */
+        switch (ebpf_get_cell_type(p)) {
+        case EBPF_CELL_VALUE:
+            ret = ebpf_parse_cell_value(&p, &cell_value_buf, &cell_value_size, true);
+            if (ret < 0) {
+                printf("ebpf_search_leaf_page: ebpf_parse_cell_value failed, cell %d, ret %d\n", i, ret);
+                return ret;
+            }
+            --i;
+            break;
+        case EBPF_CELL_VALUE_SHORT:
+            ret = ebpf_parse_cell_short_value(&p, &cell_value_buf, &cell_value_size, true);
+            if (ret < 0) {
+                printf("ebpf_search_leaf_page: ebpf_parse_cell_short_value failed, cell %d, ret %d\n", i, ret);
+                return ret;
+            }
+            --i;
+            break;
+        default:
+            /* empty value */
+            cell_value_buf = NULL;
+            cell_value_size = 0;
+        }
+
+        cmp = ebpf_lex_compare(user_key_buf, user_key_size, cell_key_buf, cell_key_size);
+        if (cmp == 0) {
+            /* user key = cell key */
+            *value_buf = cell_value_buf;
+            *value_size = cell_value_size;
+            return 0;
+        } else if (cmp < 0) {
+            /* user key < cell key */
+            break;
+        }
+    }
+    return EBPF_NOT_FOUND;  /* need to return a positive value */
+}
+
+inline int ebpf_lookup(int fd, uint64_t offset, const uint8_t *key_buf, uint64_t key_buf_size, 
+                       uint8_t *value_buf, uint64_t value_buf_size) {
+    uint64_t page_offset = offset, page_size = EBPF_BLOCK_SIZE;
+    uint8_t *page_value_buf;
+    uint64_t page_value_size;
+    int depth;
+    int ret;
+
+    if (fd < 0
+        || key_buf == NULL
+        || key_buf_size == 0
+        || value_buf == NULL
+        || value_buf_size < EBPF_BUFFER_SIZE) {
         printf("ebpf_lookup: illegal arguments\n");
         return -EBPF_EINVAL;
     }
 
-    lseek_ret = lseek(fd, 0, SEEK_SET);
-    if (lseek_ret != 0) {
-        printf("ebpf_lookup: lseek error, errno %d, ret: %ld\n", errno, lseek_ret);
-        return -EBPF_EINVAL;
+    for (depth = 0; depth < EBPF_MAX_DEPTH; ++depth) {
+        /* read page into memory */
+        ret = pread(fd, value_buf, EBPF_BLOCK_SIZE, page_offset);
+        if (ret != EBPF_BLOCK_SIZE) {
+            printf("ebpf_lookup: pread failed at %ld with errno %d, depth %d\n", offset, errno, depth);
+            return -EBPF_EINVAL;
+        }
+
+        /* search page */
+        switch (ebpf_get_page_type(value_buf)) {
+        case EBPF_PAGE_ROW_INT:
+            ret = ebpf_search_int_page(value_buf, key_buf, key_buf_size, &page_offset, &page_size);
+            if (ret < 0) {
+                printf("ebpf_lookup: ebpf_search_int_page failed, depth %d\n", depth);
+                return -EBPF_EINVAL;
+            }
+            if (page_size != EBPF_BLOCK_SIZE) {
+                printf("ebpf_lookup: wrong page size %ld, depth %d\n", page_size, depth);
+                return -EBPF_EINVAL;
+            }
+            break;
+
+        case EBPF_PAGE_ROW_LEAF:
+            ret = ebpf_search_leaf_page(value_buf, key_buf, key_buf_size, &page_value_buf, &page_value_size);
+            if (ret < 0) {
+                printf("ebpf_lookup: ebpf_search_leaf_page failed\n");
+                return -EBPF_EINVAL;
+            }
+            if (ret == 0) {
+                if (page_value_size > value_buf_size) {
+                    printf("ebpf_lookup: value too large\n");
+                    return -EBPF_EINVAL;
+                }
+                if (page_value_size > 0)
+                    memmove(value_buf, page_value_buf, page_value_size);
+                else
+                    value_buf[0] = '\0';  /* empty value */
+            }
+            return ret;
+
+        default:
+            printf("ebpf_lookup: unsupported page type 0x%lx\n", ebpf_get_page_type(value_buf))
+        }
     }
-    read_ret = read(fd, value_buf, EBPF_BUFFER_SIZE);
-    if (read_ret != EBPF_BUFFER_SIZE) {
-        printf("ebpf_lookup: read error, errno %d, ret: %d\n", errno, read_ret);
-        return -EBPF_EINVAL;
-    }
-    sprintf(value_buf, "Hongyi eats Karaage");
-    return 0;
+    /* too many levels / no leaf page */
+    return -EBPF_EINVAL;
 }
 
 #endif  /* FAKE_EBPF */
