@@ -623,6 +623,7 @@ inline int ebpf_lookup(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_b
             printf("ebpf_lookup: unsupported page type %d\n", ebpf_get_page_type(value_buf));
         }
     }
+    printf("ebpf_lookup: unfinished lookup\n");
     /* too many levels / no leaf page */
     return -EBPF_EINVAL;
 }
