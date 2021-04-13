@@ -1179,12 +1179,12 @@ __clsm_lookup(WT_CURSOR_LSM *clsm, WT_ITEM *value)
         if (F_ISSET(clsm, WT_CLSM_EBPF) 
             && __wt_txn_visible_all(session, clsm->chunks[i]->switch_txn, WT_TS_NONE)) {
             F_SET(cbt, WT_CBT_EBPF);  /* only cursor with WT_CBT_EBPF can perform ebpf traversal */
+            cbt->ebpf_buffer = clsm->ebpf_buffer;
         }
 
         c->set_key(c, &cursor->key);
         if ((ret = c->search(c)) == 0) {
             if (F_ISSET(cbt, WT_CBT_EBPF_SUCCESS)) {
-                clsm->ebpf_buffer = cbt->ebpf_buffer;
                 F_SET(clsm, WT_CLSM_EBPF_SUCCESS);
             } else {
                 WT_ERR(c->get_key(c, &cursor->key));
@@ -1670,6 +1670,8 @@ __wt_clsm_close(WT_CURSOR *cursor)
      * never have been used.
      */
     clsm = (WT_CURSOR_LSM *)cursor;
+    if (clsm->ebpf_buffer != NULL)
+        free(clsm->ebpf_buffer);
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, NULL);
 err:
 
@@ -1761,6 +1763,7 @@ __wt_clsm_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, cons
     WT_ERR(__wt_strdup(session, lsm_tree->name, &cursor->uri));
     cursor->key_format = lsm_tree->key_format;
     cursor->value_format = lsm_tree->value_format;
+    cursor->ebpf_buffer = NULL;
 
     clsm->lsm_tree = lsm_tree;
     lsm_tree = NULL;
@@ -1784,6 +1787,13 @@ __wt_clsm_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, cons
 
     if (bulk)
         WT_ERR(__wt_clsm_open_bulk(clsm, cfg));
+
+    clsm->ebpf_buffer = aligned_alloc(EBPF_BUFFER_SIZE, EBPF_BUFFER_SIZE);
+    if (!clsm->ebpf_buffer) {
+        printf("failed to allocate ebpf_buffer for lsm cursor\n");
+        goto err;
+    }
+    memset(clsm->ebpf_buffer, 0, EBPF_BUFFER_SIZE);
 
     if (0) {
 err:

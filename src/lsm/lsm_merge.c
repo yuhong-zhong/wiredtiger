@@ -587,5 +587,8 @@ err:
               session, WT_VERB_LSM, "Merge failed with %s", __wt_strerror(session, ret, NULL, 0));
     }
     F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE | WT_SESSION_READ_WONT_NEED);
+    if (created_chunk && chunk->switch_txn == WT_TXN_NONE) {
+        printf("new merged chunk does not have switch_txn\n");
+    }
     return (ret);
 }

@@ -218,8 +218,8 @@ inline int ebpf_parse_cell_addr(uint8_t **cellp, uint64_t *offset, uint64_t *siz
 
     /* read the first cell descriptor byte (cell type, RLE count) */
     if ((ebpf_get_cell_type(cell) != EBPF_CELL_ADDR_INT
-         && ebpf_get_cell_type(cell) != WT_CELL_ADDR_LEAF
-         && ebpf_get_cell_type(cell) != WT_CELL_ADDR_LEAF_NO)
+         && ebpf_get_cell_type(cell) != EBPF_CELL_ADDR_LEAF
+         && ebpf_get_cell_type(cell) != EBPF_CELL_ADDR_LEAF_NO)
         || ((cell[0] & EBPF_CELL_64V) != 0)) {
         return -EBPF_EINVAL;
     }
@@ -272,7 +272,7 @@ inline int ebpf_parse_cell_key(uint8_t **cellp, uint8_t **key, uint64_t *key_siz
     if (ret != 0) {
         return ret;
     }
-    data_len += WT_CELL_SIZE_ADJUST;
+    data_len += EBPF_CELL_SIZE_ADJUST;
 
     *key = p;
     *key_size = data_len;
@@ -332,7 +332,7 @@ inline int ebpf_parse_cell_value(uint8_t **cellp, uint8_t **value, uint64_t *val
         return ret;
     }
     if ((cell[0] & EBPF_CELL_SECOND_DESC) == 0) {
-        data_len += WT_CELL_SIZE_ADJUST;
+        data_len += EBPF_CELL_SIZE_ADJUST;
     }
 
     *value = p;
