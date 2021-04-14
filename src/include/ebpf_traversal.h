@@ -562,6 +562,32 @@ inline int ebpf_search_leaf_page(uint8_t *page_image,
     return EBPF_NOT_FOUND;  /* need to return a positive value */
 }
 
+inline void ebpf_dump_page(uint8_t *page_image, uint64_t page_offset) {
+    int row, column, addr;
+    printf("=================EBPF PAGE DUMP START=================\n");
+    for (row = 0; row < EBPF_BLOCK_SIZE / 16; ++row) {
+        printf("%08x  ", page_offset + 16 * row);
+        for (column = 0; column < 16; ++column) {
+            addr = 16 * row + column;
+            printf("%02x ", page_image[addr]);
+            if (column == 7 || column == 15) {
+                printf(" ");
+            }
+        }
+        printf("|");
+        for (column = 0; column < 16; ++column) {
+            addr = 16 * row + column;
+            if (page_image[addr] >= '!' && page_image[addr] <= '~') {
+                printf("%c", page_image[addr]);
+            } else {
+                printf(".");
+            }
+        }
+        printf("|\n");
+    }
+    printf("==================EBPF PAGE DUMP END==================\n");
+}
+
 inline int ebpf_lookup(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_buf_size, 
                        uint8_t *value_buf, uint64_t value_buf_size) {
     uint64_t page_offset = offset, page_size = EBPF_BLOCK_SIZE;
@@ -593,10 +619,12 @@ inline int ebpf_lookup(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_b
             ret = ebpf_search_int_page(value_buf, key_buf, key_buf_size, &page_offset, &page_size);
             if (ret < 0) {
                 printf("ebpf_lookup: ebpf_search_int_page failed, depth %d\n", depth);
+                ebpf_dump_page(value_buf, page_offset);
                 return -EBPF_EINVAL;
             }
             if (page_size != EBPF_BLOCK_SIZE) {
                 printf("ebpf_lookup: wrong page size %ld, depth %d\n", page_size, depth);
+                ebpf_dump_page(value_buf, page_offset);
                 return -EBPF_EINVAL;
             }
             break;
@@ -605,6 +633,7 @@ inline int ebpf_lookup(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_b
             ret = ebpf_search_leaf_page(value_buf, key_buf, key_buf_size, &page_value_buf, &page_value_size);
             if (ret < 0) {
                 printf("ebpf_lookup: ebpf_search_leaf_page failed, depth: %d, fd: %d, offset: 0x%lx\n", depth, fd, page_offset);
+                ebpf_dump_page(value_buf, page_offset);
                 return -EBPF_EINVAL;
             }
             if (ret == 0) {
