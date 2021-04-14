@@ -225,6 +225,7 @@ struct __wt_cursor_btree {
 #define WT_CBT_VAR_ONPAGE_MATCH 0x400u   /* Var-store: on-page recno match */
 #define WT_CBT_EBPF 0x800u
 #define WT_CBT_EBPF_SUCCESS 0x1000u
+#define WT_CBT_EBPF_ERROR 0x2000u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 
 #define WT_CBT_POSITION_MASK /* Flags associated with position */                      \

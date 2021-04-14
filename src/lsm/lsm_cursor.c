@@ -1181,7 +1181,7 @@ __clsm_lookup(WT_CURSOR_LSM *clsm, WT_ITEM *value)
          * enable ebpf only on read-only chunk
          */
         cbt = (WT_CURSOR_BTREE *)c;
-        F_CLR(cbt, WT_CBT_EBPF | WT_CBT_EBPF_SUCCESS);
+        F_CLR(cbt, WT_CBT_EBPF | WT_CBT_EBPF_SUCCESS | WT_CBT_EBPF_ERROR);
         if (F_ISSET(clsm, WT_CLSM_EBPF) && immutable) {
             F_SET(cbt, WT_CBT_EBPF);  /* only cursor with WT_CBT_EBPF can perform ebpf traversal */
             cbt->ebpf_buffer = clsm->ebpf_buffer;
@@ -1197,10 +1197,10 @@ __clsm_lookup(WT_CURSOR_LSM *clsm, WT_ITEM *value)
                 if (__clsm_deleted(clsm, value))
                     ret = WT_NOTFOUND;
             }
-            F_CLR(cbt, WT_CBT_EBPF);
+            F_CLR(cbt, WT_CBT_EBPF | WT_CBT_EBPF_ERROR);
             goto done;
         }
-        F_CLR(cbt, WT_CBT_EBPF | WT_CBT_EBPF_SUCCESS);
+        F_CLR(cbt, WT_CBT_EBPF | WT_CBT_EBPF_SUCCESS | WT_CBT_EBPF_ERROR);
         WT_ERR_NOTFOUND_OK(ret, false);
         F_CLR(c, WT_CURSTD_KEY_SET);
         /* Update stats: the active chunk can't have a bloom filter. */

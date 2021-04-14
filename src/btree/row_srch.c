@@ -456,6 +456,7 @@ descend:
                     __wt_verbose(session, WT_VERB_LSM, "ebpf_parse_cell_addr_int error - uri: %s, depth: %d, ret: %d, size: %ld", 
                                  cbt->dhandle->name, depth, ebpf_ret, ebpf_size);
                     F_CLR(cbt, WT_CBT_EBPF);
+                    F_SET(cbt, WT_CBT_EBPF_ERROR);
                     goto skip_ebpf;
                 }
 #ifdef EBPF_DEBUG
