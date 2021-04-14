@@ -451,9 +451,7 @@ descend:
                 }
 #endif
                 /* parse wt cell to get file offset & size */
-                printf("start ebpf_parse_cell_addr\n");
                 ebpf_ret = ebpf_parse_cell_addr((uint8_t **)&descent->addr, &ebpf_offset, &ebpf_size, false);
-                printf("end ebpf_parse_cell_addr\n");
                 if (ebpf_ret < 0 || ebpf_size != EBPF_BLOCK_SIZE) {
                     __wt_verbose(session, WT_VERB_LSM, "ebpf_parse_cell_addr_int error - uri: %s, depth: %d, ret: %d, size: %ld", 
                                  cbt->dhandle->name, depth, ebpf_ret, ebpf_size);
@@ -469,11 +467,9 @@ descend:
                 /*
                  * start ebpf traversal
                  */
-                printf("start ebpf_lookup\n");
                 ebpf_ret = ebpf_lookup(((WT_FILE_HANDLE_POSIX *)btree->bm->block->fh->handle)->fd, 
                                        ebpf_offset, (uint8_t *)srch_key->data, srch_key->size, 
                                        cbt->ebpf_buffer, EBPF_BUFFER_SIZE);
-                printf("end ebpf_lookup\n");
                 if (ebpf_ret < 0) {
                     __wt_verbose(session, WT_VERB_LSM, "ebpf_lookup error - uri: %s, depth: %d, ret: %d", 
                                  cbt->dhandle->name, depth, ebpf_ret);
@@ -614,6 +610,7 @@ leaf_match:
 
     if (0) {
 ebpf_out:
+        __wt_page_release(session, current, 0);
         F_SET(cbt, WT_CBT_EBPF_SUCCESS);
         cbt->compare = ebpf_ret;
         cbt->slot = 0;  /* slot is not important */
