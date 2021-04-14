@@ -610,6 +610,7 @@ leaf_match:
 
     if (0) {
 ebpf_out:
+        /* emulate the failure path */
         F_SET(cbt, WT_CBT_EBPF_SUCCESS);
         __wt_page_release(session, current, 0);
         cbt->ref = NULL;

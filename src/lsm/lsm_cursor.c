@@ -1222,9 +1222,11 @@ err:
                 F_SET(cursor, WT_CURSTD_VALUE_INT);
         } else if (c != NULL)
             WT_TRET(c->reset(c));
+    } else {
+        /* emulate the failure path */
+        F_CLR(cbt, WT_CBT_EBPF_SUCCESS);
+        c->reset(c);
     }
-    F_CLR(cbt, WT_CBT_EBPF_SUCCESS);
-
     return (ret);
 }
 
