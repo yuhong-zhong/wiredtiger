@@ -341,9 +341,6 @@ __wt_lsm_merge(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, u_int id)
     dest = src = NULL;
     created_chunk = create_bloom = locked = in_sync = false;
 
-#ifdef EBPF_DEBUG
-    lsm_nchunks = lsm_tree->nchunks;
-#endif
     /* Fast path if it's obvious no merges could be done. */
     if (lsm_tree->nchunks < lsm_tree->merge_min &&
       lsm_tree->merge_aggressiveness < WT_LSM_AGGRESSIVE_THRESHOLD)
