@@ -1763,7 +1763,8 @@ __wt_clsm_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, cons
     WT_ERR(__wt_strdup(session, lsm_tree->name, &cursor->uri));
     cursor->key_format = lsm_tree->key_format;
     cursor->value_format = lsm_tree->value_format;
-    cursor->ebpf_buffer = NULL;
+
+    clsm->ebpf_buffer = NULL;
 
     clsm->lsm_tree = lsm_tree;
     lsm_tree = NULL;
