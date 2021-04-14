@@ -335,9 +335,6 @@ __wt_lsm_merge(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, u_int id)
     const char *cfg[3];
     const char *drop_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_drop), "force", NULL};
     bool created_chunk, create_bloom, locked, in_sync;
-#ifdef EBPF_DEBUG
-    uint32_t lsm_nchunks;
-#endif
 
     bloom = NULL;
     chunk = NULL;
@@ -593,12 +590,5 @@ err:
               session, WT_VERB_LSM, "Merge failed with %s", __wt_strerror(session, ret, NULL, 0));
     }
     F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE | WT_SESSION_READ_WONT_NEED);
-#ifdef EBPF_DEBUG
-    if (created_chunk && chunk->switch_txn == WT_TXN_NONE) {
-        printf("new merged chunk does not have switch_txn, nchunks: %d, lsm nchunk: %d\n", nchunks, lsm_nchunks);
-    } else {
-        printf("new merged chunk has switch_txn, nchunks: %d, lsm nchunk: %d\n", nchunks, lsm_nchunks);
-    }
-#endif
     return (ret);
 }
