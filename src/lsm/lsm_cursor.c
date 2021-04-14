@@ -1146,6 +1146,7 @@ __clsm_lookup(WT_CURSOR_LSM *clsm, WT_ITEM *value)
     u_int i;
     bool have_hash;
     WT_CURSOR_BTREE *cbt;
+    bool immutable = false;
 
     c = NULL;
     cursor = &clsm->iface;
@@ -1171,13 +1172,17 @@ __clsm_lookup(WT_CURSOR_LSM *clsm, WT_ITEM *value)
                 WT_LSM_TREE_STAT_INCR(session, clsm->lsm_tree->bloom_hit);
         }
 
+        if (!immutable && i < clsm->nchunks - 1
+            && __wt_txn_visible(session, clsm->chunks[i]->switch_txn, WT_TS_NONE)) {
+            immutable = true;
+        }
+
         /* 
          * enable ebpf only on read-only chunk
          */
         cbt = (WT_CURSOR_BTREE *)c;
         F_CLR(cbt, WT_CBT_EBPF | WT_CBT_EBPF_SUCCESS);
-        if (F_ISSET(clsm, WT_CLSM_EBPF) 
-            && __wt_txn_visible_all(session, clsm->chunks[i]->switch_txn, WT_TS_NONE)) {
+        if (F_ISSET(clsm, WT_CLSM_EBPF) && immutable) {
             F_SET(cbt, WT_CBT_EBPF);  /* only cursor with WT_CBT_EBPF can perform ebpf traversal */
             cbt->ebpf_buffer = clsm->ebpf_buffer;
         }

@@ -590,6 +590,8 @@ err:
 #ifdef EBPF_DEBUG
     if (created_chunk && chunk->switch_txn == WT_TXN_NONE) {
         printf("new merged chunk does not have switch_txn\n");
+    } else {
+        printf("new merged chunk has switch_txn\n");
     }
 #endif
     return (ret);
