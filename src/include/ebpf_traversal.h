@@ -562,11 +562,11 @@ inline int ebpf_search_leaf_page(uint8_t *page_image,
     return EBPF_NOT_FOUND;  /* need to return a positive value */
 }
 
-inline void ebpf_dump_page(uint8_t *page_image, uint64_t page_offset) {
+static inline void ebpf_dump_page(uint8_t *page_image, uint64_t page_offset) {
     int row, column, addr;
     printf("=================EBPF PAGE DUMP START=================\n");
     for (row = 0; row < EBPF_BLOCK_SIZE / 16; ++row) {
-        printf("%08x  ", page_offset + 16 * row);
+        printf("%08lx  ", page_offset + 16 * row);
         for (column = 0; column < 16; ++column) {
             addr = 16 * row + column;
             printf("%02x ", page_image[addr]);
