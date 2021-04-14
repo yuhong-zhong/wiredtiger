@@ -451,6 +451,7 @@ descend:
                 }
 #endif
                 /* parse wt cell to get file offset & size */
+                printf("start ebpf_parse_cell_addr\n");
                 ebpf_ret = ebpf_parse_cell_addr((uint8_t **)&descent->addr, &ebpf_offset, &ebpf_size, false);
                 if (ebpf_ret < 0 || ebpf_size != EBPF_BLOCK_SIZE) {
                     __wt_verbose(session, WT_VERB_LSM, "ebpf_parse_cell_addr_int error - uri: %s, depth: %d, ret: %d, size: %ld", 
@@ -459,6 +460,7 @@ descend:
                     F_SET(cbt, WT_CBT_EBPF_ERROR);
                     goto skip_ebpf;
                 }
+                printf("end ebpf_parse_cell_addr\n");
 #ifdef EBPF_DEBUG
                 if (ebpf_offset != _offset || ebpf_size != _size) {
                     printf("ebpf_parse_cell_addr_int inconsistent\n");
