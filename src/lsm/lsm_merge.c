@@ -336,7 +336,7 @@ __wt_lsm_merge(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, u_int id)
     const char *drop_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_drop), "force", NULL};
     bool created_chunk, create_bloom, locked, in_sync;
 #ifdef EBPF_DEBUG
-    u_int lsm_nchunks;
+    uint32_t lsm_nchunks;
 #endif
 
     bloom = NULL;
@@ -344,6 +344,9 @@ __wt_lsm_merge(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, u_int id)
     dest = src = NULL;
     created_chunk = create_bloom = locked = in_sync = false;
 
+#ifdef EBPF_DEBUG
+    lsm_nchunks = lsm_tree->nchunks;
+#endif
     /* Fast path if it's obvious no merges could be done. */
     if (lsm_tree->nchunks < lsm_tree->merge_min &&
       lsm_tree->merge_aggressiveness < WT_LSM_AGGRESSIVE_THRESHOLD)
@@ -358,9 +361,6 @@ __wt_lsm_merge(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, u_int id)
 
     WT_ERR(__lsm_merge_span(session, lsm_tree, id, &start_chunk, &end_chunk, &record_count));
     nchunks = (end_chunk + 1) - start_chunk;
-#ifdef EBPF_DEBUG
-    lsm_nchunks = lsm_tree->nchunks;
-#endif
 
     WT_ASSERT(session, nchunks > 0);
     start_id = lsm_tree->chunk[start_chunk]->id;
@@ -595,9 +595,9 @@ err:
     F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE | WT_SESSION_READ_WONT_NEED);
 #ifdef EBPF_DEBUG
     if (created_chunk && chunk->switch_txn == WT_TXN_NONE) {
-        printf("new merged chunk does not have switch_txn, end_chunk: %d, nchunk: %d\n", end_chunk, lsm_nchunks);
+        printf("new merged chunk does not have switch_txn, nchunks: %d, lsm nchunk: %d\n", nchunks, lsm_nchunks);
     } else {
-        printf("new merged chunk has switch_txn, end_chunk: %d, nchunk: %d\n", end_chunk, lsm_nchunks);
+        printf("new merged chunk has switch_txn, nchunks: %d, lsm nchunk: %d\n", nchunks, lsm_nchunks);
     }
 #endif
     return (ret);
