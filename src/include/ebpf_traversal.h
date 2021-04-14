@@ -604,7 +604,7 @@ inline int ebpf_lookup(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_b
         case EBPF_PAGE_ROW_LEAF:
             ret = ebpf_search_leaf_page(value_buf, key_buf, key_buf_size, &page_value_buf, &page_value_size);
             if (ret < 0) {
-                printf("ebpf_lookup: ebpf_search_leaf_page failed\n");
+                printf("ebpf_lookup: ebpf_search_leaf_page failed, depth: %d, fd: %d, offset: 0x%lx\n", depth, fd, page_offset);
                 return -EBPF_EINVAL;
             }
             if (ret == 0) {
