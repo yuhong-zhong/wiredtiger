@@ -610,8 +610,8 @@ leaf_match:
 
     if (0) {
 ebpf_out:
-        __wt_page_release(session, current, 0);
         F_SET(cbt, WT_CBT_EBPF_SUCCESS);
+        __wt_page_release(session, cbt->ref, 0);
         cbt->compare = ebpf_ret;
         cbt->slot = 0;  /* slot is not important */
         return (0);
