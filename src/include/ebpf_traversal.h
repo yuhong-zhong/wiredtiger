@@ -615,7 +615,8 @@ inline int ebpf_lookup(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_b
         /* search page */
         switch (ebpf_get_page_type(value_buf)) {
         case EBPF_PAGE_ROW_INT:
-            printf("about to search internal page\n");
+            printf("about to dump internal page\n");
+            ebpf_dump_page(value_buf, page_offset);
             ret = ebpf_search_int_page(value_buf, key_buf, key_buf_size, &page_offset, &page_size);
             if (ret < 0) {
                 printf("ebpf_lookup: ebpf_search_int_page failed, depth %d\n", depth);
