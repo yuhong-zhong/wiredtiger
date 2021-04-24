@@ -8,7 +8,7 @@
 #define EBPF_BLOCK_SIZE 512
 /* page is always block size */
 #define EBPF_MAX_DEPTH 512
-#define EBPF_KV_MAX_LEN 512
+#define EBPF_KEY_MAX_LEN 64
 
 
 /************************************************
@@ -109,7 +109,7 @@ struct ebpf_block_header {
 #define EBPF_POS_2BYTE_MARKER (uint8_t)0xc0
 #define EBPF_POS_MULTI_MARKER (uint8_t)0xe0
 #define EBPF_POS_1BYTE_MAX ((1 << 6) - 1)
-#define EBPF_POS_2BYTE_MAX ((1 << 13) + POS_1BYTE_MAX)
+#define EBPF_POS_2BYTE_MAX ((1 << 13) + EBPF_POS_1BYTE_MAX)
 
 /* Extract bits <start> to <end> from a value (counting from LSB == 0). */
 #define GET_BITS(x, start, end) (((uint64_t)(x) & ((1U << (start)) - 1U)) >> (end))
@@ -119,7 +119,7 @@ inline int ebpf_lex_compare(uint8_t *key_1, uint64_t key_len_1,
     /* extracted from https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/include/btree_cmp.i#L90 
      * ( might consider replace with vector operation :) although not sure whether ebpf supports it )
      */
-    uint64_t len = (key_len_1 > key_len_2) ? key_len_2 : key_len_1, max_len = EBPF_KV_MAX_LEN;
+    uint64_t len = (key_len_1 > key_len_2) ? key_len_2 : key_len_1, max_len = EBPF_KEY_MAX_LEN;
     for (; len > 0 && max_len > 0; --len, --max_len, ++key_1, ++key_2)
         if (*key_1 != *key_2)
             return (*key_1 < *key_2 ? -1 : 1);
@@ -286,7 +286,6 @@ inline int ebpf_parse_cell_short_key(uint8_t **cellp, uint8_t **key, uint64_t *k
                                      bool update_pointer) {
     uint8_t *cell = *cellp, *p = *cellp;
     uint64_t data_len;
-    int ret;
 
     /* read the first cell descriptor byte */
     if (ebpf_get_cell_type(cell) != EBPF_CELL_KEY_SHORT) {
@@ -347,7 +346,6 @@ inline int ebpf_parse_cell_short_value(uint8_t **cellp, uint8_t **value, uint64_
                                        bool update_pointer) {
     uint8_t *cell = *cellp, *p = *cellp;
     uint64_t data_len;
-    int ret;
 
     /* read the first cell descriptor byte */
     if (ebpf_get_cell_type(cell) != EBPF_CELL_VALUE_SHORT) {
@@ -526,7 +524,7 @@ inline int ebpf_search_leaf_page(uint8_t *page_image,
         }
 
         /* parse value cell */
-        switch (ebpf_get_cell_type(p)) {
+        switch (ebpf_get_cell_type(p)) {  // TODO: potential out of bound
         case EBPF_CELL_VALUE:
             ret = ebpf_parse_cell_value(&p, &cell_value_buf, &cell_value_size, true);
             if (ret < 0) {
@@ -617,6 +615,7 @@ inline int ebpf_lookup(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_b
         /* search page */
         switch (ebpf_get_page_type(value_buf)) {
         case EBPF_PAGE_ROW_INT:
+            printf("about to search internal page\n");
             ret = ebpf_search_int_page(value_buf, key_buf, key_buf_size, &page_offset, &page_size);
             if (ret < 0) {
                 printf("ebpf_lookup: ebpf_search_int_page failed, depth %d\n", depth);
