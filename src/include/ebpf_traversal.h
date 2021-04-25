@@ -430,6 +430,7 @@ inline int ebpf_search_int_page(uint8_t *page_image,
             return -EBPF_EINVAL;
         }
         /* parse addr cell */
+        printf("ebpf_search_int_page: about to ebpf_parse_cell_addr, offset 0x%lx, descriptor 0x%ld", p - page_image, *p);
         ret = ebpf_parse_cell_addr(&p, &cell_descent_offset, &cell_descent_size, true);
         if (ret < 0) {
             printf("ebpf_search_int_page: ebpf_parse_cell_addr failed, kv %d, offset %d, ret %d\n", i, (uint64_t)(p - page_image), ret);
