@@ -430,7 +430,6 @@ inline int ebpf_search_int_page(uint8_t *page_image,
             return -EBPF_EINVAL;
         }
         /* parse addr cell */
-        printf("ebpf_search_int_page: about to ebpf_parse_cell_addr, offset 0x%lx, descriptor 0x%lx\n", p - page_image, *p);
         ret = ebpf_parse_cell_addr(&p, &cell_descent_offset, &cell_descent_size, true);
         if (ret < 0) {
             printf("ebpf_search_int_page: ebpf_parse_cell_addr failed, kv %d, offset %d, ret %d\n", i, (uint64_t)(p - page_image), ret);
@@ -616,8 +615,6 @@ inline int ebpf_lookup(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_b
         /* search page */
         switch (ebpf_get_page_type(value_buf)) {
         case EBPF_PAGE_ROW_INT:
-            printf("about to dump internal page\n");
-            ebpf_dump_page(value_buf, page_offset);
             ret = ebpf_search_int_page(value_buf, key_buf, key_buf_size, &page_offset, &page_size);
             if (ret < 0) {
                 printf("ebpf_lookup: ebpf_search_int_page failed, depth %d\n", depth);
