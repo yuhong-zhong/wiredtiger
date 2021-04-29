@@ -660,7 +660,9 @@ inline int ebpf_lookup_real(int fd, uint64_t offset, uint8_t *key_buf, uint64_t 
     }
     memcpy(value_buf, key_buf, key_size);
 
+    printf("ebpf_lookup: about to call imposter_pread\n");
     ret = syscall(__NR_imposter_pread, fd, value_buf, EBPF_BLOCK_SIZE, offset);
+    printf("ebpf_lookup: finish imposter_pread, ret %d\n", ret);
     if (ret < 0) {
         printf("ebpf_lookup: imposter pread failed, ret %d\n", ret);
         return ret;
