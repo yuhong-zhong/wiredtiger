@@ -1,7 +1,7 @@
 /*
  * Config definitions
  */
-#define FAKE_EBPF
+// #define FAKE_EBPF
 // #define EBPF_DEBUG
 
 #define EBPF_BUFFER_SIZE 4096
