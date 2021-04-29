@@ -2,20 +2,13 @@
  * Config definitions
  */
 #define FAKE_EBPF
-#define EBPF_DEBUG
+// #define EBPF_DEBUG
 
 #define EBPF_BUFFER_SIZE 4096
 #define EBPF_BLOCK_SIZE 512
 /* page is always block size */
 #define EBPF_MAX_DEPTH 512
 #define EBPF_KEY_MAX_LEN 64
-
-
-/************************************************
- * FAKE_EBPF START
- * (need to port the following part to ebpf)
- ************************************************/
-#ifdef FAKE_EBPF
 
 /*
  * Error numbers
@@ -587,8 +580,8 @@ static inline void ebpf_dump_page(uint8_t *page_image, uint64_t page_offset) {
     printf("==============================EBPF PAGE DUMP END==============================\n");
 }
 
-inline int ebpf_lookup(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_buf_size, 
-                       uint8_t *value_buf, uint64_t value_buf_size) {
+inline int ebpf_lookup_fake(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_buf_size, 
+                            uint8_t *value_buf, uint64_t value_buf_size) {
     uint64_t page_offset = offset, page_size = EBPF_BLOCK_SIZE;
     uint8_t *page_value_buf;
     uint64_t page_value_size;
@@ -656,8 +649,29 @@ inline int ebpf_lookup(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_b
     return -EBPF_EINVAL;
 }
 
-#endif  /* FAKE_EBPF */
+#define __NR_imposter_pread 442
 
-/************************************************
- * FAKE_EBPF END
- ************************************************/
+inline int ebpf_lookup_real(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_size, 
+                            uint8_t *value_buf, uint64_t value_buf_size) {
+    int ret;
+    if (key_size > value_buf_size) {
+        printf("ebpf_lookup: key_size > value_buf_size\n");
+        return -EBPF_EINVAL;
+    }
+    memcpy(value_buf, key_buf, key_size);
+
+    ret = syscall(__NR_imposter_pread, fd, value_buf, EBPF_BLOCK_SIZE, offset);
+    if (ret < 0) {
+        printf("ebpf_lookup: imposter pread failed, ret %d\n", ret);
+        return ret;
+    }
+    if (value_buf[0] == '\0') {
+        if (value_buf[1] == 'e') {
+            /* empty value */
+        } else if (value_buf[1] == 'n') {
+            /* not found */
+            return EBPF_NOT_FOUND;
+        }
+    }
+    return ret;
+}

@@ -467,7 +467,13 @@ descend:
                 /*
                  * start ebpf traversal
                  */
-                ebpf_ret = ebpf_lookup(((WT_FILE_HANDLE_POSIX *)btree->bm->block->fh->handle)->fd, 
+                ebpf_ret = 
+#ifdef FAKE_EBPF
+                ebpf_lookup_fake
+#else
+                ebpf_lookup_real
+#endif
+                           (((WT_FILE_HANDLE_POSIX *)btree->bm->block->fh->handle)->fd, 
                                        ebpf_offset, (uint8_t *)srch_key->data, srch_key->size, 
                                        cbt->ebpf_buffer, EBPF_BUFFER_SIZE);
                 if (ebpf_ret < 0) {
