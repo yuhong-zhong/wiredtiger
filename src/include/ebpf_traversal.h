@@ -668,9 +668,12 @@ inline int ebpf_lookup_real(int fd, uint64_t offset, uint8_t *key_buf, uint64_t 
     if (value_buf[0] == '\0') {
         if (value_buf[1] == 'e') {
             /* empty value */
+            printf("ebpf_lookup: empty value\n");
         } else if (value_buf[1] == 'n') {
             /* not found */
             return EBPF_NOT_FOUND;
+        } else {
+            printf("ebpf_lookup: empty string value, second char %d\n", value_buf[1]);
         }
     }
     return 0;
