@@ -658,6 +658,7 @@ inline int ebpf_lookup_real(int fd, uint64_t offset, uint8_t *key_buf, uint64_t 
         printf("ebpf_lookup: key_size > value_buf_size\n");
         return -EBPF_EINVAL;
     }
+    printf("ebpf_lookup: search with key %s\n", key_buf);
     memcpy(value_buf, key_buf, key_size);
 
     ret = syscall(__NR_imposter_pread, fd, value_buf, EBPF_BLOCK_SIZE, offset);
@@ -666,7 +667,6 @@ inline int ebpf_lookup_real(int fd, uint64_t offset, uint8_t *key_buf, uint64_t 
         return ret;
     }
     if (value_buf[0] == '\0') {
-        ebpf_dump_page(value_buf, 0);
         if (value_buf[1] == 'e') {
             /* empty value */
             printf("ebpf_lookup: empty value\n");
@@ -675,6 +675,7 @@ inline int ebpf_lookup_real(int fd, uint64_t offset, uint8_t *key_buf, uint64_t 
             return EBPF_NOT_FOUND;
         } else {
             printf("ebpf_lookup: empty string value, second char %d\n", value_buf[1]);
+            ebpf_dump_page(value_buf, 0);
         }
     }
     return 0;
