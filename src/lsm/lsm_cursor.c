@@ -1197,7 +1197,7 @@ __clsm_lookup(WT_CURSOR_LSM *clsm, WT_ITEM *value)
                 if (__clsm_deleted(clsm, value))
                     ret = WT_NOTFOUND;
             }
-            F_CLR(cbt, WT_CBT_EBPF | WT_CBT_EBPF_ERROR);
+            F_CLR(cbt, WT_CBT_EBPF | WT_CBT_EBPF_SUCCESS | WT_CBT_EBPF_ERROR);
             goto done;
         }
         F_CLR(cbt, WT_CBT_EBPF | WT_CBT_EBPF_SUCCESS | WT_CBT_EBPF_ERROR);
@@ -1213,7 +1213,7 @@ __clsm_lookup(WT_CURSOR_LSM *clsm, WT_ITEM *value)
 
 done:
 err:
-    if (!F_ISSET(cbt, WT_CBT_EBPF_SUCCESS)) {
+    if (!F_ISSET(clsm, WT_CLSM_EBPF_SUCCESS)) {
         if (ret == 0) {
             F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
             F_SET(cursor, WT_CURSTD_KEY_INT);
@@ -1224,7 +1224,6 @@ err:
             WT_TRET(c->reset(c));
     } else {
         /* emulate the failure path */
-        F_CLR(cbt, WT_CBT_EBPF_SUCCESS);
         c->reset(c);
     }
     return (ret);
