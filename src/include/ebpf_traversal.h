@@ -631,6 +631,7 @@ inline int ebpf_lookup_fake(int fd, uint64_t offset, uint8_t *key_buf, uint64_t 
             break;
 
         case EBPF_PAGE_ROW_LEAF:
+            /*
             ret = ebpf_search_leaf_page(value_buf, key_buf, key_buf_size, &page_value_buf, &page_value_size, &child_index);
             if (ret < 0) {
                 printf("ebpf_lookup: ebpf_search_leaf_page failed, depth: %d, fd: %d, offset: 0x%lx\n", depth, fd, page_offset);
@@ -645,12 +646,12 @@ inline int ebpf_lookup_fake(int fd, uint64_t offset, uint8_t *key_buf, uint64_t 
                 if (page_value_size > 0)
                     memmove(value_buf, page_value_buf, page_value_size);
                 else
-                    value_buf[0] = '\0';  /* empty value */
+                    value_buf[0] = '\0';  // empty value
             }
             child_index_arr[depth] = child_index;
+            */
             *nr_page = depth + 1;
             return ret;
-
         default:
             printf("ebpf_lookup: unsupported page type %d\n", ebpf_get_page_type(value_buf));
         }

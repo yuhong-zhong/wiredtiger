@@ -498,17 +498,13 @@ descend:
                         }
                         current = descent;
 
-                        page = current->page;
                         if (page->type == WT_PAGE_ROW_INT) {
+                            page = current->page;
                             WT_INTL_INDEX_GET(session, page, pindex);
                             indx = ebpf_child_index_arr[ebpf_i];
                             descent = pindex->index[indx];
                         } else if (page->type == WT_PAGE_ROW_LEAF) {
-                            cbt->ref = current;
-                            current = NULL;
-                            indx = ebpf_child_index_arr[ebpf_i];
-                            rip = page->pg_row + indx;
-                            goto leaf_match;
+                            goto leaf_only;
                         } else {
                             printf("__wt_row_search: unrecognized page type\n");
                             F_CLR(cbt, WT_CBT_EBPF);
