@@ -368,9 +368,9 @@ WT_CELL_FOREACH_ADDR: https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.
 __wt_cell_unpack_safe: https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/include/cell.i#L663
 __wt_row_search: https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/btree/row_srch.c#L331
 */
-inline int ebpf_search_int_page(uint8_t *page_image, 
-                                uint8_t *user_key_buf, uint64_t user_key_size,
-                                uint64_t *descent_offset, uint64_t *descent_size, uint64_t *descent_index) {
+static inline int ebpf_search_int_page(uint8_t *page_image, 
+                                       uint8_t *user_key_buf, uint64_t user_key_size,
+                                       uint64_t *descent_offset, uint64_t *descent_size, uint64_t *descent_index) {
     uint8_t *p = page_image;
     struct ebpf_page_header *header = (struct ebpf_page_header *)page_image;
     uint32_t nr_kv = header->u.entries / 2, i, ii;
@@ -470,9 +470,9 @@ __wt_row_search: https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src
 wt_row: https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/include/btmem.h#L953
     https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/include/btree.i#L885
 */
-inline int ebpf_search_leaf_page(uint8_t *page_image, 
-                                 uint8_t *user_key_buf, uint64_t user_key_size,
-                                 uint8_t **value_buf, uint64_t *value_size, uint64_t *descent_index) {
+static inline int ebpf_search_leaf_page(uint8_t *page_image, 
+                                        uint8_t *user_key_buf, uint64_t user_key_size,
+                                        uint8_t **value_buf, uint64_t *value_size, uint64_t *descent_index) {
     uint8_t *p = page_image;
     struct ebpf_page_header *header = (struct ebpf_page_header *)page_image;
     uint32_t nr_cell = header->u.entries, i, ii, k;
