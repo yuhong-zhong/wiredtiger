@@ -201,6 +201,8 @@ __check_leaf_key_range(
     return (0);
 }
 
+int __wt_ebpf_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32_t flags, uint8_t *ebpf_data);
+
 /*
  * __wt_row_search --
  *     Search a row-store tree for a specific key.
@@ -225,6 +227,8 @@ __wt_row_search(WT_CURSOR_BTREE *cbt, WT_ITEM *srch_key, bool insert, WT_REF *le
     bool append_check, descend_right, done;
     int ebpf_ret;
     uint64_t ebpf_offset, ebpf_size;
+    int ebpf_nr_page, ebpf_i;
+    uint64_t ebpf_child_index_arr[EBPF_MAX_DEPTH];
 
     session = CUR2S(cbt);
     btree = S2BT(session);
@@ -469,19 +473,54 @@ descend:
                  */
                 ebpf_ret = 
 #ifdef FAKE_EBPF
-                ebpf_lookup_fake
+                ebpf_lookup_fake(((WT_FILE_HANDLE_POSIX *)btree->bm->block->fh->handle)->fd, 
+                                 ebpf_offset, (uint8_t *)srch_key->data, srch_key->size, 
+                                 cbt->ebpf_buffer, EBPF_BUFFER_SIZE, cbt->ebpf_scratch_buffer, ebpf_child_index_arr, &ebpf_nr_page);
 #else
-                ebpf_lookup_real
+                ebpf_lookup_real(((WT_FILE_HANDLE_POSIX *)btree->bm->block->fh->handle)->fd, 
+                                 ebpf_offset, (uint8_t *)srch_key->data, srch_key->size, 
+                                 cbt->ebpf_buffer, EBPF_BUFFER_SIZE);
 #endif
-                           (((WT_FILE_HANDLE_POSIX *)btree->bm->block->fh->handle)->fd, 
-                                       ebpf_offset, (uint8_t *)srch_key->data, srch_key->size, 
-                                       cbt->ebpf_buffer, EBPF_BUFFER_SIZE);
                 if (ebpf_ret < 0) {
                     __wt_verbose(session, WT_VERB_LSM, "ebpf_lookup error - uri: %s, depth: %d, ret: %d", 
                                  cbt->dhandle->name, depth, ebpf_ret);
                     F_CLR(cbt, WT_CBT_EBPF);
                     goto skip_ebpf;
                 } else {
+#ifdef FAKE_EBPF
+                    for (ebpf_i = 0; ebpf_i < ebpf_nr_page; ++ebpf_i) {
+                        read_flags = WT_READ_RESTART_OK;
+                        if (F_ISSET(cbt, WT_CBT_READ_ONCE))
+                            FLD_SET(read_flags, WT_READ_WONT_NEED);
+                        ret = __wt_ebpf_page_swap_func(session, current, descent, read_flags, &cbt->ebpf_scratch_buffer[EBPF_BLOCK_SIZE * ebpf_i]);
+                        if (ret != 0) {
+                            printf("__wt_row_search: __wt_ebpf_page_swap_func failed\n");
+                            F_CLR(cbt, WT_CBT_EBPF);
+                            goto skip_ebpf;
+                        }
+                        current = descent;
+
+                        page = current->page;
+                        if (page->type == WT_PAGE_ROW_INT) {
+                            WT_INTL_INDEX_GET(session, page, pindex);
+                            indx = child_index_arr[ebpf_i];
+                            descent = pindex->index[indx];
+                        } else if (page->type == WT_PAGE_ROW_LEAF) {
+                            cbt->ref = current;
+                            current = NULL;
+                            indx = child_index_arr[ebpf_i];
+                            rip = page->pg_row + indx;
+                            goto leaf_match;
+                        } else {
+                            printf("__wt_row_search: unrecognized page type\n");
+                            F_CLR(cbt, WT_CBT_EBPF);
+                            goto skip_ebpf;
+                        }
+                    }
+                    printf("__wt_row_search: caching not terminated\n");
+                    F_CLR(cbt, WT_CBT_EBPF);
+                    goto skip_ebpf;
+#endif
                     goto ebpf_out;
                 }
             }

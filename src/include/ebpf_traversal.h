@@ -1,13 +1,14 @@
 /*
  * Config definitions
  */
-// #define FAKE_EBPF
+#define FAKE_EBPF
 // #define EBPF_DEBUG
 
 #define EBPF_BUFFER_SIZE 4096
+#define EBPF_SCRATCH_BUFFER_SIZE 8192
 #define EBPF_BLOCK_SIZE 512
 /* page is always block size */
-#define EBPF_MAX_DEPTH 512
+#define EBPF_MAX_DEPTH 16
 #define EBPF_KEY_MAX_LEN 64
 
 /*
@@ -369,7 +370,7 @@ __wt_row_search: https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src
 */
 inline int ebpf_search_int_page(uint8_t *page_image, 
                                 uint8_t *user_key_buf, uint64_t user_key_size,
-                                uint64_t *descent_offset, uint64_t *descent_size) {
+                                uint64_t *descent_offset, uint64_t *descent_size, uint64_t *descent_index) {
     uint8_t *p = page_image;
     struct ebpf_page_header *header = (struct ebpf_page_header *)page_image;
     uint32_t nr_kv = header->u.entries / 2, i, ii;
@@ -441,11 +442,13 @@ inline int ebpf_search_int_page(uint8_t *page_image,
             /* user key = cell key */
             *descent_offset = cell_descent_offset;
             *descent_size = cell_descent_size;
+            *descent_index = i;
             return 0;
         } else if (cmp < 0) {
             /* user key < cell key */
             *descent_offset = prev_cell_descent_offset;
             *descent_size = prev_cell_descent_size;
+            *descent_index = i - 1;
             return 0;
         }
         prev_cell_descent_offset = cell_descent_offset;
@@ -453,6 +456,7 @@ inline int ebpf_search_int_page(uint8_t *page_image,
     }
     *descent_offset = prev_cell_descent_offset;
     *descent_size = prev_cell_descent_size;
+    *descent_index = i - 1;
     return 0;
 }
 
@@ -468,10 +472,10 @@ wt_row: https://github.com/wiredtiger/wiredtiger/blob/mongodb-4.4.0/src/include/
 */
 inline int ebpf_search_leaf_page(uint8_t *page_image, 
                                  uint8_t *user_key_buf, uint64_t user_key_size,
-                                 uint8_t **value_buf, uint64_t *value_size) {
+                                 uint8_t **value_buf, uint64_t *value_size, uint64_t *descent_index) {
     uint8_t *p = page_image;
     struct ebpf_page_header *header = (struct ebpf_page_header *)page_image;
-    uint32_t nr_cell = header->u.entries, i, ii;
+    uint32_t nr_cell = header->u.entries, i, ii, k;
     int ret;
 
     if (page_image == NULL
@@ -488,7 +492,7 @@ inline int ebpf_search_leaf_page(uint8_t *page_image,
     p += (EBPF_PAGE_HEADER_SIZE + EBPF_BLOCK_HEADER_SIZE);
 
     /* traverse all key value pairs */
-    for (i = 0, ii = EBPF_BLOCK_SIZE; i < nr_cell && ii > 0; ++i, --ii) {
+    for (i = 0, ii = EBPF_BLOCK_SIZE, k = 0; i < nr_cell && ii > 0; ++i, --ii, ++k) {
         uint8_t *cell_key_buf;
         uint64_t cell_key_size;
         uint8_t *cell_value_buf;
@@ -545,6 +549,7 @@ inline int ebpf_search_leaf_page(uint8_t *page_image,
             /* user key = cell key */
             *value_buf = cell_value_buf;
             *value_size = cell_value_size;
+            *descent_index = k;
             return 0;
         } else if (cmp < 0) {
             /* user key < cell key */
@@ -581,12 +586,14 @@ static inline void ebpf_dump_page(uint8_t *page_image, uint64_t page_offset) {
 }
 
 inline int ebpf_lookup_fake(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_buf_size, 
-                            uint8_t *value_buf, uint64_t value_buf_size) {
+                            uint8_t *value_buf, uint64_t value_buf_size, uint8_t *page_data_arr,
+                            uint64_t *child_index_arr, int *nr_page) {
     uint64_t page_offset = offset, page_size = EBPF_BLOCK_SIZE;
     uint8_t *page_value_buf;
     uint64_t page_value_size;
     int depth;
     int ret;
+    uint64_t child_index;
 
     if (fd < 0
         || key_buf == NULL
@@ -604,11 +611,12 @@ inline int ebpf_lookup_fake(int fd, uint64_t offset, uint8_t *key_buf, uint64_t 
             printf("ebpf_lookup: pread failed at %ld with errno %d, depth %d\n", offset, errno, depth);
             return -EBPF_EINVAL;
         }
+        memcpy(&page_data_arr[EBPF_BLOCK_SIZE * depth], value_buf, EBPF_BLOCK_SIZE);
 
         /* search page */
         switch (ebpf_get_page_type(value_buf)) {
         case EBPF_PAGE_ROW_INT:
-            ret = ebpf_search_int_page(value_buf, key_buf, key_buf_size, &page_offset, &page_size);
+            ret = ebpf_search_int_page(value_buf, key_buf, key_buf_size, &page_offset, &page_size, &child_index);
             if (ret < 0) {
                 printf("ebpf_lookup: ebpf_search_int_page failed, depth %d\n", depth);
                 ebpf_dump_page(value_buf, page_offset);
@@ -619,10 +627,11 @@ inline int ebpf_lookup_fake(int fd, uint64_t offset, uint8_t *key_buf, uint64_t 
                 ebpf_dump_page(value_buf, page_offset);
                 return -EBPF_EINVAL;
             }
+            child_index_arr[depth] = child_index;
             break;
 
         case EBPF_PAGE_ROW_LEAF:
-            ret = ebpf_search_leaf_page(value_buf, key_buf, key_buf_size, &page_value_buf, &page_value_size);
+            ret = ebpf_search_leaf_page(value_buf, key_buf, key_buf_size, &page_value_buf, &page_value_size, &child_index);
             if (ret < 0) {
                 printf("ebpf_lookup: ebpf_search_leaf_page failed, depth: %d, fd: %d, offset: 0x%lx\n", depth, fd, page_offset);
                 ebpf_dump_page(value_buf, page_offset);
@@ -638,6 +647,8 @@ inline int ebpf_lookup_fake(int fd, uint64_t offset, uint8_t *key_buf, uint64_t 
                 else
                     value_buf[0] = '\0';  /* empty value */
             }
+            child_index_arr[depth] = child_index;
+            *nr_page = depth + 1;
             return ret;
 
         default:

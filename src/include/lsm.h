@@ -53,6 +53,7 @@ struct __wt_cursor_lsm {
 
     WT_LSM_TREE *lsm_tree;
     uint8_t *ebpf_buffer;
+    uint8_t *ebpf_scratch_buffer;
 
     uint64_t dsk_gen;
 
