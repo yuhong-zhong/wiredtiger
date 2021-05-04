@@ -503,12 +503,12 @@ descend:
                         page = current->page;
                         if (page->type == WT_PAGE_ROW_INT) {
                             WT_INTL_INDEX_GET(session, page, pindex);
-                            indx = child_index_arr[ebpf_i];
+                            indx = ebpf_child_index_arr[ebpf_i];
                             descent = pindex->index[indx];
                         } else if (page->type == WT_PAGE_ROW_LEAF) {
                             cbt->ref = current;
                             current = NULL;
-                            indx = child_index_arr[ebpf_i];
+                            indx = ebpf_child_index_arr[ebpf_i];
                             rip = page->pg_row + indx;
                             goto leaf_match;
                         } else {
