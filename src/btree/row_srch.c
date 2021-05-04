@@ -490,6 +490,8 @@ descend:
                         read_flags = WT_READ_RESTART_OK;
                         if (F_ISSET(cbt, WT_CBT_READ_ONCE))
                             FLD_SET(read_flags, WT_READ_WONT_NEED);
+                        printf("about to dump page %d\n", ebpf_i);
+                        ebpf_dump_page(&cbt->ebpf_scratch_buffer[EBPF_BLOCK_SIZE * ebpf_i], 0);
                         ret = __wt_ebpf_page_swap_func(session, current, descent, read_flags, &cbt->ebpf_scratch_buffer[EBPF_BLOCK_SIZE * ebpf_i]);
                         if (ret != 0) {
                             printf("__wt_row_search: __wt_ebpf_page_swap_func failed\n");
