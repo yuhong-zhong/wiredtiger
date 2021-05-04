@@ -448,7 +448,7 @@ typedef uint64_t wt_timestamp_t;
 #include "serial.i"
 #include "time.i"
 
-#include "ebpf_traversal.h"
+#include "ebpf.h"
 
 #if defined(__cplusplus)
 }

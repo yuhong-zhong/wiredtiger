@@ -300,25 +300,25 @@ int ebpf_search_int_page(uint8_t *page_image,
         case EBPF_CELL_KEY:
             ret = ebpf_parse_cell_key(&p, &cell_key_buf, &cell_key_size, true);
             if (ret < 0) {
-                printf("ebpf_search_int_page: ebpf_parse_cell_key failed, kv %d, offset %d, ret %d\n", i, (uint64_t)(p - page_image), ret);
+                printf("ebpf_search_int_page: ebpf_parse_cell_key failed, kv %d, offset %ld, ret %d\n", i, (uint64_t)(p - page_image), ret);
                 return ret;
             }
             break;
         case EBPF_CELL_KEY_SHORT:
             ret = ebpf_parse_cell_short_key(&p, &cell_key_buf, &cell_key_size, true);
             if (ret < 0) {
-                printf("ebpf_search_int_page: ebpf_parse_cell_short_key failed, kv %d, offset %d, ret %d\n", i, (uint64_t)(p - page_image), ret);
+                printf("ebpf_search_int_page: ebpf_parse_cell_short_key failed, kv %d, offset %ld, ret %d\n", i, (uint64_t)(p - page_image), ret);
                 return ret;
             }
             break;
         default:
-            printf("ebpf_search_int_page: invalid cell type %d, kv %d, offset %d\n", ebpf_get_cell_type(p), i, (uint64_t)(p - page_image));
+            printf("ebpf_search_int_page: invalid cell type %d, kv %d, offset %ld\n", ebpf_get_cell_type(p), i, (uint64_t)(p - page_image));
             return -EBPF_EINVAL;
         }
         /* parse addr cell */
         ret = ebpf_parse_cell_addr(&p, &cell_descent_offset, &cell_descent_size, true);
         if (ret < 0) {
-            printf("ebpf_search_int_page: ebpf_parse_cell_addr failed, kv %d, offset %d, ret %d\n", i, (uint64_t)(p - page_image), ret);
+            printf("ebpf_search_int_page: ebpf_parse_cell_addr failed, kv %d, offset %ld, ret %d\n", i, (uint64_t)(p - page_image), ret);
             return ret;
         }
 
@@ -396,19 +396,19 @@ int ebpf_search_leaf_page(uint8_t *page_image,
         case EBPF_CELL_KEY:
             ret = ebpf_parse_cell_key(&p, &cell_key_buf, &cell_key_size, true);
             if (ret < 0) {
-                printf("ebpf_search_leaf_page: ebpf_parse_cell_key failed, cell %d, offset %d, ret %d\n", i, (uint64_t)(p - page_image), ret);
+                printf("ebpf_search_leaf_page: ebpf_parse_cell_key failed, cell %d, offset %ld, ret %d\n", i, (uint64_t)(p - page_image), ret);
                 return ret;
             }
             break;
         case EBPF_CELL_KEY_SHORT:
             ret = ebpf_parse_cell_short_key(&p, &cell_key_buf, &cell_key_size, true);
             if (ret < 0) {
-                printf("ebpf_search_leaf_page: ebpf_parse_cell_short_key failed, cell %d, offset %d, ret %d\n", i, (uint64_t)(p - page_image), ret);
+                printf("ebpf_search_leaf_page: ebpf_parse_cell_short_key failed, cell %d, offset %ld, ret %d\n", i, (uint64_t)(p - page_image), ret);
                 return ret;
             }
             break;
         default:
-            printf("ebpf_search_leaf_page: invalid cell type %d, cell %d, offset %d\n", ebpf_get_cell_type(p), i, (uint64_t)(p - page_image));
+            printf("ebpf_search_leaf_page: invalid cell type %d, cell %d, offset %ld\n", ebpf_get_cell_type(p), i, (uint64_t)(p - page_image));
             return -EBPF_EINVAL;
         }
 
@@ -417,7 +417,7 @@ int ebpf_search_leaf_page(uint8_t *page_image,
         case EBPF_CELL_VALUE:
             ret = ebpf_parse_cell_value(&p, &cell_value_buf, &cell_value_size, true);
             if (ret < 0) {
-                printf("ebpf_search_leaf_page: ebpf_parse_cell_value failed, cell %d, offset %d, ret %d\n", i, (uint64_t)(p - page_image), ret);
+                printf("ebpf_search_leaf_page: ebpf_parse_cell_value failed, cell %d, offset %ld, ret %d\n", i, (uint64_t)(p - page_image), ret);
                 return ret;
             }
             ++i;
@@ -425,7 +425,7 @@ int ebpf_search_leaf_page(uint8_t *page_image,
         case EBPF_CELL_VALUE_SHORT:
             ret = ebpf_parse_cell_short_value(&p, &cell_value_buf, &cell_value_size, true);
             if (ret < 0) {
-                printf("ebpf_search_leaf_page: ebpf_parse_cell_short_value failed, cell %d, offset %d, ret %d\n", i, (uint64_t)(p - page_image), ret);
+                printf("ebpf_search_leaf_page: ebpf_parse_cell_short_value failed, cell %d, offset %ld, ret %d\n", i, (uint64_t)(p - page_image), ret);
                 return ret;
             }
             ++i;
