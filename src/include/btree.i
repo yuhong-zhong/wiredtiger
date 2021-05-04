@@ -1783,7 +1783,7 @@ __wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32
 
 int __wt_ebpf_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, uint8_t *ebpf_data);
 
-int __wt_ebpf_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32_t flags, uint8_t *ebpf_data)
+static inline int __wt_ebpf_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32_t flags, uint8_t *ebpf_data)
 {
     WT_DECL_RET;
     bool acquired;

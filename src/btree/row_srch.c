@@ -201,8 +201,6 @@ __check_leaf_key_range(
     return (0);
 }
 
-int __wt_ebpf_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32_t flags, uint8_t *ebpf_data);
-
 /*
  * __wt_row_search --
  *     Search a row-store tree for a specific key.
