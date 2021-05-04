@@ -498,7 +498,7 @@ int ebpf_lookup_fake(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_buf
 
     for (depth = 0; depth < EBPF_MAX_DEPTH; ++depth) {
         if (depth > 5) {
-            printf("ebpf_lookup_fake warning: more than 7 pages\n");
+            printf("ebpf_lookup_fake warning: more than 6 pages\n");
         }
         /* read page into memory */
         ret = pread(fd, value_buf, EBPF_BLOCK_SIZE, page_offset);
