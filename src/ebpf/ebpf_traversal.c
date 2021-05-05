@@ -588,7 +588,7 @@ int ebpf_lookup_real(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_siz
         cur_nr_page += context->scratch.nr_page;
         /* re-init scratch & offset */
         if (!context->scratch.done) {
-            offset = context->next_addr[0];
+            offset = context->scratch.next_addr[0];
             context->scratch.nr_page = 0;
             context->scratch.level = 0;
         }
