@@ -557,26 +557,33 @@ int ebpf_lookup_fake(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_buf
 }
 
 int ebpf_lookup_real(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_size, 
-                     uint8_t *value_buf, uint64_t value_buf_size) {
-    int ret;
-    if (key_size > value_buf_size) {
-        printf("ebpf_lookup: key_size > value_buf_size\n");
+                     uint8_t *scratch_buf, uint8_t **page_data_arr_p,
+                     uint64_t *child_index_arr, int *nr_page) {
+    struct bpf_imposter_kern *context = (struct bpf_imposter_kern *) scratch_buf;
+    int i, ret;
+
+    if (key_size > EBPF_KEY_MAX_LEN) {
+        printf("ebpf_lookup_real: key size is too large\n");
         return -EBPF_EINVAL;
     }
-    memcpy(value_buf, key_buf, key_size);
 
-    ret = syscall(__NR_imposter_pread, fd, value_buf, EBPF_BLOCK_SIZE, offset);
+    /* initialize context buf */
+    memset(scratch_buf, 0, 4096);
+    context->scratch.key_size = key_size;
+    memcpy(context->scratch.key, key_buf, key_size);
+
+    /* call xrp read */
+    ret = syscall(__NR_imposter_pread, fd, scratch_buf, EBPF_BLOCK_SIZE, offset);
     if (ret != EBPF_BLOCK_SIZE) {
         printf("ebpf_lookup: imposter pread failed, ret %d\n", ret);
         return ret;
     }
-    if (value_buf[0] == '\0') {
-        if (value_buf[1] == 'e') {
-            /* empty value */
-        } else if (value_buf[1] == 'n') {
-            /* not found */
-            return EBPF_NOT_FOUND;
-        }
+
+    /* parse result */
+    *page_data_arr_p = scratch_buf + 1024;
+    *nr_page = context->scratch.nr_page;
+    for (i = 0; i < *nr_page - 1; ++i) {
+        child_index_arr[i] = context->scratch.descent_index_arr[i];
     }
     return 0;
 }
