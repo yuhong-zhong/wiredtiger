@@ -1172,7 +1172,7 @@ __clsm_lookup(WT_CURSOR_LSM *clsm, WT_ITEM *value)
                 WT_LSM_TREE_STAT_INCR(session, clsm->lsm_tree->bloom_hit);
         }
 
-        if (!immutable && i < clsm->nchunks - 1
+        if (!immutable
             && __wt_txn_visible(session, clsm->chunks[i]->switch_txn, WT_TS_NONE)) {
             immutable = true;
         }
