@@ -227,6 +227,7 @@ __wt_row_search(WT_CURSOR_BTREE *cbt, WT_ITEM *srch_key, bool insert, WT_REF *le
     uint64_t ebpf_offset, ebpf_size;
     int ebpf_nr_page, ebpf_i;
     uint64_t ebpf_child_index_arr[EBPF_MAX_DEPTH];
+    uint8_t *ebpf_page_arr;
 
     session = CUR2S(cbt);
     btree = S2BT(session);
@@ -477,7 +478,7 @@ descend:
 #else
                 ebpf_lookup_real(((WT_FILE_HANDLE_POSIX *)btree->bm->block->fh->handle)->fd, 
                                  ebpf_offset, (uint8_t *)srch_key->data, srch_key->size, 
-                                 cbt->ebpf_buffer, cbt->ebpf_scratch_buffer, ebpf_child_index_arr, &ebpf_nr_page);
+                                 cbt->ebpf_buffer, &ebpf_page_arr, ebpf_child_index_arr, &ebpf_nr_page);
 #endif
                 if (ebpf_ret < 0) {
                     __wt_verbose(session, WT_VERB_LSM, "ebpf_lookup error - uri: %s, depth: %d, ret: %d", 
@@ -485,11 +486,14 @@ descend:
                     F_CLR(cbt, WT_CBT_EBPF);
                     goto skip_ebpf;
                 } else {
+#ifdef FAKE_EBPF
+                    ebpf_page_arr = cbt->ebpf_scratch_buffer;
+#endif
                     for (ebpf_i = 0; ebpf_i < ebpf_nr_page; ++ebpf_i) {
                         read_flags = WT_READ_RESTART_OK;
                         if (F_ISSET(cbt, WT_CBT_READ_ONCE))
                             FLD_SET(read_flags, WT_READ_WONT_NEED);
-                        ret = __wt_ebpf_page_swap_func(session, current, descent, read_flags, &cbt->ebpf_scratch_buffer[EBPF_BLOCK_SIZE * ebpf_i]);
+                        ret = __wt_ebpf_page_swap_func(session, current, descent, read_flags, &ebpf_page_arr[EBPF_BLOCK_SIZE * ebpf_i]);
                         if (ret != 0) {
                             printf("__wt_row_search: __wt_ebpf_page_swap_func failed\n");
                             F_CLR(cbt, WT_CBT_EBPF);

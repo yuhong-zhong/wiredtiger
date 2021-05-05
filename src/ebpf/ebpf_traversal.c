@@ -557,11 +557,10 @@ int ebpf_lookup_fake(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_buf
 }
 
 int ebpf_lookup_real(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_size, 
-                     uint8_t *scratch_buf, uint8_t *page_data_arr,
+                     uint8_t *scratch_buf, uint8_t **page_data_arr_p,
                      uint64_t *child_index_arr, int *nr_page) {
     struct bpf_imposter_kern *context = (struct bpf_imposter_kern *) scratch_buf;
     int i, ret;
-    int cur_nr_page = 0;
 
     if (key_size > EBPF_KEY_MAX_LEN) {
         printf("ebpf_lookup_real: key size is too large\n");
@@ -573,26 +572,18 @@ int ebpf_lookup_real(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_siz
     context->scratch.key_size = key_size;
     memcpy(context->scratch.key, key_buf, key_size);
 
-    while (!context->scratch.done) {
-        /* call xrp read */
-        ret = syscall(__NR_imposter_pread, fd, scratch_buf, EBPF_BLOCK_SIZE, offset);
-        if (ret != EBPF_BLOCK_SIZE) {
-            printf("ebpf_lookup: imposter pread failed, ret %d\n", ret);
-            return ret;
-        }
-        /* load new results */
-        for (i = 0; i < context->scratch.nr_page; ++i) {
-            child_index_arr[cur_nr_page + i] = context->scratch.descent_index_arr[i];
-        }
-        memcpy(page_data_arr + cur_nr_page * EBPF_BLOCK_SIZE, scratch_buf + 1024, context->scratch.nr_page * EBPF_BLOCK_SIZE);
-        cur_nr_page += context->scratch.nr_page;
-        /* re-init scratch & offset */
-        if (!context->scratch.done) {
-            offset = context->scratch.next_addr[0];
-            context->scratch.nr_page = 0;
-            context->scratch.level = 0;
-        }
+    /* call xrp read */
+    ret = syscall(__NR_imposter_pread, fd, scratch_buf, EBPF_BLOCK_SIZE, offset);
+    if (ret != EBPF_BLOCK_SIZE) {
+        printf("ebpf_lookup: imposter pread failed, ret %d\n", ret);
+        return ret;
     }
-    *nr_page = cur_nr_page;
+
+    /* parse result */
+    *page_data_arr_p = scratch_buf + 1024;
+    *nr_page = context->scratch.nr_page;
+    for (i = 0; i < *nr_page - 1; ++i) {
+        child_index_arr[i] = context->scratch.descent_index_arr[i];
+    }
     return 0;
 }
