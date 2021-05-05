@@ -8,7 +8,7 @@
 #define EBPF_SCRATCH_BUFFER_SIZE 8192
 #define EBPF_BLOCK_SIZE 512
 /* page is always block size */
-#define EBPF_MAX_DEPTH 6
+#define EBPF_MAX_DEPTH 16
 #define EBPF_KEY_MAX_LEN 18
 
 /*
@@ -139,13 +139,14 @@ int ebpf_lookup_fake(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_buf
 #define __NR_imposter_pread 442
 
 int ebpf_lookup_real(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_size, 
-                     uint8_t *scratch_buf, uint8_t **page_data_arr_p,
+                     uint8_t *scratch_buf, uint8_t *page_data_arr,
                      uint64_t *child_index_arr, int *nr_page);
 
 struct wt_ebpf_scratch {
     uint64_t key_size;
     char key[EBPF_KEY_MAX_LEN];
 
+    int32_t done;
     int32_t level;
     int32_t iteration;
     uint64_t page_offset;
