@@ -8,7 +8,7 @@
 #define EBPF_SCRATCH_BUFFER_SIZE 8192
 #define EBPF_BLOCK_SIZE 512
 /* page is always block size */
-#define EBPF_MAX_DEPTH 16
+#define EBPF_MAX_DEPTH 6
 #define EBPF_KEY_MAX_LEN 18
 
 /*

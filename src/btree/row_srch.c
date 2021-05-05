@@ -226,7 +226,7 @@ __wt_row_search(WT_CURSOR_BTREE *cbt, WT_ITEM *srch_key, bool insert, WT_REF *le
     int ebpf_ret;
     uint64_t ebpf_offset, ebpf_size;
     int ebpf_nr_page, ebpf_i;
-    uint64_t ebpf_child_index_arr[EBPF_MAX_DEPTH];
+    uint64_t ebpf_child_index_arr[16];
 
     session = CUR2S(cbt);
     btree = S2BT(session);
