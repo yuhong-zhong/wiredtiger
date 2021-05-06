@@ -160,5 +160,5 @@ struct bpf_imposter_kern {
 	int32_t done;
 	uint64_t next_addr[16];
 	uint64_t size[16];
-	struct wt_ebpf_scratch scratch;
+    char scratch[3320];
 };

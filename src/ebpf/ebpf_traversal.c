@@ -560,6 +560,7 @@ int ebpf_lookup_real(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_siz
                      uint8_t *scratch_buf, uint8_t **page_data_arr_p,
                      uint64_t *child_index_arr, int *nr_page) {
     struct bpf_imposter_kern *context = (struct bpf_imposter_kern *) scratch_buf;
+    struct wt_ebpf_scratch *scratch = (struct wt_ebpf_scratch *) context->scratch;
     int i, ret;
 
     if (key_size > EBPF_KEY_MAX_LEN) {
@@ -569,8 +570,8 @@ int ebpf_lookup_real(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_siz
 
     /* initialize context buf */
     memset(scratch_buf, 0, 4096);
-    context->scratch.key_size = key_size;
-    memcpy(context->scratch.key, key_buf, key_size);
+    scratch->key_size = key_size;
+    memcpy(scratch->key, key_buf, key_size);
 
     /* call xrp read */
     ret = syscall(__NR_imposter_pread, fd, scratch_buf, EBPF_BLOCK_SIZE, offset);
@@ -581,9 +582,9 @@ int ebpf_lookup_real(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_siz
 
     /* parse result */
     *page_data_arr_p = scratch_buf + 1024;
-    *nr_page = context->scratch.nr_page;
+    *nr_page = scratch->nr_page;
     for (i = 0; i < *nr_page - 1; ++i) {
-        child_index_arr[i] = context->scratch.descent_index_arr[i];
+        child_index_arr[i] = scratch->descent_index_arr[i];
     }
     return 0;
 }
