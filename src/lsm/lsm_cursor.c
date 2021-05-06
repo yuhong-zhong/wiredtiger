@@ -1185,26 +1185,22 @@ __clsm_lookup(WT_CURSOR_LSM *clsm, WT_ITEM *value)
         if (F_ISSET(clsm, WT_CLSM_EBPF) && immutable) {
             F_SET(cbt, WT_CBT_EBPF);  /* only cursor with WT_CBT_EBPF can perform ebpf traversal */
             cbt->ebpf_buffer = clsm->ebpf_buffer;
-            cbt->ebpf_scratch_buffer = clsm->ebpf_scratch_buffer;
+            cbt->ebpf_extra_buffer = clsm->ebpf_extra_buffer;
         }
 
         c->set_key(c, &cursor->key);
         if ((ret = c->search(c)) == 0) {
             cbt->ebpf_buffer = NULL;
-            cbt->ebpf_scratch_buffer = NULL;
-            if (F_ISSET(cbt, WT_CBT_EBPF_SUCCESS)) {
-                F_SET(clsm, WT_CLSM_EBPF_SUCCESS);
-            } else {
-                WT_ERR(c->get_key(c, &cursor->key));
-                WT_ERR(c->get_value(c, value));
-                if (__clsm_deleted(clsm, value))
-                    ret = WT_NOTFOUND;
-            }
+            cbt->ebpf_extra_buffer = NULL;
+            WT_ERR(c->get_key(c, &cursor->key));
+            WT_ERR(c->get_value(c, value));
+            if (__clsm_deleted(clsm, value))
+                ret = WT_NOTFOUND;
             F_CLR(cbt, WT_CBT_EBPF | WT_CBT_EBPF_SUCCESS | WT_CBT_EBPF_ERROR);
             goto done;
         }
         cbt->ebpf_buffer = NULL;
-        cbt->ebpf_scratch_buffer = NULL;
+        cbt->ebpf_extra_buffer = NULL;
         F_CLR(cbt, WT_CBT_EBPF | WT_CBT_EBPF_SUCCESS | WT_CBT_EBPF_ERROR);
         WT_ERR_NOTFOUND_OK(ret, false);
         F_CLR(c, WT_CURSTD_KEY_SET);
@@ -1218,19 +1214,15 @@ __clsm_lookup(WT_CURSOR_LSM *clsm, WT_ITEM *value)
 
 done:
 err:
-    if (!F_ISSET(clsm, WT_CLSM_EBPF_SUCCESS)) {
-        if (ret == 0) {
-            F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-            F_SET(cursor, WT_CURSTD_KEY_INT);
-            clsm->current = c;
-            if (value == &cursor->value)
-                F_SET(cursor, WT_CURSTD_VALUE_INT);
-        } else if (c != NULL)
-            WT_TRET(c->reset(c));
-    } else {
-        /* emulate the failure path */
-        c->reset(c);
-    }
+    if (ret == 0) {
+        F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+        F_SET(cursor, WT_CURSTD_KEY_INT);
+        clsm->current = c;
+        if (value == &cursor->value)
+            F_SET(cursor, WT_CURSTD_VALUE_INT);
+    } else if (c != NULL)
+        WT_TRET(c->reset(c));
+
     return (ret);
 }
 
@@ -1259,10 +1251,8 @@ __clsm_search(WT_CURSOR *cursor)
 
 err:
     __clsm_leave(clsm);
-    if (ret == 0 && !F_ISSET(clsm, WT_CLSM_EBPF_SUCCESS))
+    if (ret == 0)
         __clsm_deleted_decode(clsm, &cursor->value);
-    if (ret == 0 && F_ISSET(clsm, WT_CLSM_EBPF_SUCCESS))
-        cursor->set_value(cursor, clsm->ebpf_buffer);
     F_CLR(clsm, WT_CLSM_EBPF | WT_CLSM_EBPF_SUCCESS);
     API_END_RET(session, ret);
 }
@@ -1683,8 +1673,8 @@ __wt_clsm_close(WT_CURSOR *cursor)
     clsm = (WT_CURSOR_LSM *)cursor;
     if (clsm->ebpf_buffer != NULL)
         free(clsm->ebpf_buffer);
-    if (clsm->ebpf_scratch_buffer != NULL)
-        free(clsm->ebpf_scratch_buffer);
+    if (clsm->ebpf_extra_buffer != NULL)
+        free(clsm->ebpf_extra_buffer);
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, NULL);
 err:
 
@@ -1778,7 +1768,7 @@ __wt_clsm_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, cons
     cursor->value_format = lsm_tree->value_format;
 
     clsm->ebpf_buffer = NULL;
-    clsm->ebpf_scratch_buffer = NULL;
+    clsm->ebpf_extra_buffer = NULL;
 
     clsm->lsm_tree = lsm_tree;
     lsm_tree = NULL;
@@ -1806,13 +1796,13 @@ __wt_clsm_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, cons
         printf("failed to allocate ebpf_buffer for lsm cursor\n");
         goto err;
     }
-    clsm->ebpf_scratch_buffer = aligned_alloc(EBPF_SCRATCH_BUFFER_SIZE, EBPF_SCRATCH_BUFFER_SIZE);
-    if (!clsm->ebpf_scratch_buffer) {
-        printf("failed to allocate ebpf_scratch_buffer for lsm cursor\n");
+    clsm->ebpf_extra_buffer = aligned_alloc(EBPF_EXTRA_BUFFER_SIZE, EBPF_EXTRA_BUFFER_SIZE);
+    if (!clsm->ebpf_extra_buffer) {
+        printf("failed to allocate ebpf_extra_buffer for lsm cursor\n");
         goto err;
     }
     memset(clsm->ebpf_buffer, 0, EBPF_BUFFER_SIZE);
-    memset(clsm->ebpf_scratch_buffer, 0, EBPF_SCRATCH_BUFFER_SIZE);
+    memset(clsm->ebpf_extra_buffer, 0, EBPF_EXTRA_BUFFER_SIZE);
 
     if (0) {
 err:

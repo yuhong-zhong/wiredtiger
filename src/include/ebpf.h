@@ -5,7 +5,7 @@
 // #define EBPF_DEBUG
 
 #define EBPF_BUFFER_SIZE 4096
-#define EBPF_SCRATCH_BUFFER_SIZE 8192
+#define EBPF_EXTRA_BUFFER_SIZE 8192
 #define EBPF_BLOCK_SIZE 512
 /* page is always block size */
 #define EBPF_MAX_DEPTH 6

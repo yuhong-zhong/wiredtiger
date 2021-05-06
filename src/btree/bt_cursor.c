@@ -545,17 +545,6 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 
         if (btree->type == BTREE_ROW) {
             WT_ERR(__cursor_row_search(cbt, false, NULL, NULL));
-            if (F_ISSET(cbt, WT_CBT_EBPF_SUCCESS)) {
-                /* emulate the failure path */
-                if (cbt->compare == 0)
-                    ret = 0;
-                else
-                    ret = WT_NOTFOUND;
-                __cursor_reset(cbt);
-                __cursor_state_restore(cursor, &state);
-                F_SET(cbt, WT_CBT_EBPF_SUCCESS);
-                return ret;
-            }
             if (cbt->compare == 0)
                 WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
         } else {

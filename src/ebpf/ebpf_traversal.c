@@ -497,10 +497,6 @@ int ebpf_lookup_fake(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_buf
     }
 
     for (depth = 0; depth < EBPF_MAX_DEPTH; ++depth) {
-        // if (depth > 5) {
-        //     printf("ebpf_lookup_fake warning: more than 6 pages\n");
-        // }
-        /* read page into memory */
         ret = pread(fd, value_buf, EBPF_BLOCK_SIZE, page_offset);
         if (ret != EBPF_BLOCK_SIZE) {
             printf("ebpf_lookup: pread failed at %ld with errno %d, depth %d\n", offset, errno, depth);
@@ -531,25 +527,6 @@ int ebpf_lookup_fake(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_buf
             break;
 
         case EBPF_PAGE_ROW_LEAF:
-            /*
-            ret = ebpf_search_leaf_page(value_buf, key_buf, key_buf_size, &page_value_buf, &page_value_size, &child_index);
-            if (ret < 0) {
-                printf("ebpf_lookup: ebpf_search_leaf_page failed, depth: %d, fd: %d, offset: 0x%lx\n", depth, fd, page_offset);
-                ebpf_dump_page(value_buf, page_offset);
-                return -EBPF_EINVAL;
-            }
-            if (ret == 0) {
-                if (page_value_size > value_buf_size) {
-                    printf("ebpf_lookup: value too large\n");
-                    return -EBPF_EINVAL;
-                }
-                if (page_value_size > 0)
-                    memmove(value_buf, page_value_buf, page_value_size);
-                else
-                    value_buf[0] = '\0';  // empty value
-            }
-            child_index_arr[depth] = child_index;
-            */
             *nr_page = depth + 1;
             return 0;
         default:

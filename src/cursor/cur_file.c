@@ -661,7 +661,7 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
     cbt->dhandle = session->dhandle;
 
     cbt->ebpf_buffer = NULL;
-    cbt->ebpf_scratch_buffer = NULL;
+    cbt->ebpf_extra_buffer = NULL;
 
     /*
      * Increment the data-source's in-use counter; done now because closing the cursor will

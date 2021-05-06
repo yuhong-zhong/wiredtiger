@@ -484,7 +484,7 @@ descend:
 #ifdef FAKE_EBPF
                 ebpf_lookup_fake(((WT_FILE_HANDLE_POSIX *)btree->bm->block->fh->handle)->fd, 
                                  ebpf_offset, (uint8_t *)srch_key->data, srch_key->size, 
-                                 cbt->ebpf_buffer, EBPF_BUFFER_SIZE, cbt->ebpf_scratch_buffer, ebpf_child_index_arr, &ebpf_nr_page);
+                                 cbt->ebpf_buffer, EBPF_BUFFER_SIZE, cbt->ebpf_extra_buffer, ebpf_child_index_arr, &ebpf_nr_page);
 #else
                 ebpf_lookup_real(((WT_FILE_HANDLE_POSIX *)btree->bm->block->fh->handle)->fd, 
                                  ebpf_offset, (uint8_t *)srch_key->data, srch_key->size, 
@@ -499,7 +499,7 @@ descend:
                     goto skip_ebpf;
                 } else {
 #ifdef FAKE_EBPF
-                    ebpf_page_arr = cbt->ebpf_scratch_buffer;
+                    ebpf_page_arr = cbt->ebpf_extra_buffer;
 #endif
                     ebpf_i = 0;
                 }
@@ -642,17 +642,6 @@ leaf_only:
 leaf_match:
         cbt->compare = 0;
         cbt->slot = WT_ROW_SLOT(page, rip);
-        return (0);
-    }
-
-    if (0) {
-ebpf_out:
-        /* emulate the failure path */
-        F_SET(cbt, WT_CBT_EBPF_SUCCESS);
-        __wt_page_release(session, current, 0);
-        cbt->ref = NULL;
-        cbt->compare = ebpf_ret;
-        cbt->slot = 0;  /* slot is not important */
         return (0);
     }
 

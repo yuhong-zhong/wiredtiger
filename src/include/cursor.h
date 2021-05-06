@@ -85,7 +85,7 @@ struct __wt_cursor_btree {
     WT_DATA_HANDLE *dhandle; /* Data handle for the btree */
 
     uint8_t *ebpf_buffer;
-    uint8_t *ebpf_scratch_buffer;
+    uint8_t *ebpf_extra_buffer;
 
     /*
      * The following fields are set by the search functions as a precursor to page modification: we
