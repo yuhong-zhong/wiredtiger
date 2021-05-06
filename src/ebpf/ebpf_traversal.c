@@ -529,6 +529,7 @@ int ebpf_lookup_fake(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_buf
         case EBPF_PAGE_ROW_LEAF:
             *nr_page = depth + 1;
             return 0;
+
         default:
             printf("ebpf_lookup: unsupported page type %d\n", ebpf_get_page_type(value_buf));
         }
@@ -565,7 +566,7 @@ int ebpf_lookup_real(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_siz
     /* parse result */
     *page_data_arr_p = scratch_buf + 1024;
     *nr_page = scratch->nr_page;
-    for (i = 0; i < *nr_page - 1; ++i) {
+    for (i = 0; i < *nr_page; ++i) {
         child_index_arr[i] = scratch->descent_index_arr[i];
     }
     return 0;
