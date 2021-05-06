@@ -227,7 +227,7 @@ __wt_row_search(WT_CURSOR_BTREE *cbt, WT_ITEM *srch_key, bool insert, WT_REF *le
     uint64_t ebpf_offset, ebpf_size;
     int ebpf_nr_page, ebpf_i;
     uint64_t ebpf_child_index_arr[EBPF_MAX_DEPTH];
-    uint8_t *ebpf_page_arr;
+    uint8_t *ebpf_page_arr = NULL;
 
     session = CUR2S(cbt);
     btree = S2BT(session);
@@ -435,7 +435,7 @@ descend:
          * check if the descent is in memory.
          * if not, trigger ebpf traversal
          */
-        if (F_ISSET(cbt, WT_CBT_EBPF)) {
+        if (F_ISSET(cbt, WT_CBT_EBPF) && ebpf_page_arr == NULL) {
             if (descent->state == WT_REF_DISK
                 && ebpf_get_cell_type(descent->addr) == WT_CELL_ADDR_INT) {
 #ifdef EBPF_DEBUG
@@ -460,6 +460,7 @@ descend:
                                  cbt->dhandle->name, depth, ebpf_ret, ebpf_size);
                     F_CLR(cbt, WT_CBT_EBPF);
                     F_SET(cbt, WT_CBT_EBPF_ERROR);
+                    ebpf_page_arr = NULL;
                     goto skip_ebpf;
                 }
 #ifdef EBPF_DEBUG
@@ -484,44 +485,31 @@ descend:
                     __wt_verbose(session, WT_VERB_LSM, "ebpf_lookup error - uri: %s, depth: %d, ret: %d", 
                                  cbt->dhandle->name, depth, ebpf_ret);
                     F_CLR(cbt, WT_CBT_EBPF);
+                    F_SET(cbt, WT_CBT_EBPF_ERROR);
+                    ebpf_page_arr = NULL;
                     goto skip_ebpf;
                 } else {
 #ifdef FAKE_EBPF
                     ebpf_page_arr = cbt->ebpf_scratch_buffer;
 #endif
-                    for (ebpf_i = 0; ebpf_i < ebpf_nr_page; ++ebpf_i) {
-                        read_flags = WT_READ_RESTART_OK;
-                        if (F_ISSET(cbt, WT_CBT_READ_ONCE))
-                            FLD_SET(read_flags, WT_READ_WONT_NEED);
-                        ret = __wt_ebpf_page_swap_func(session, current, descent, read_flags, &ebpf_page_arr[EBPF_BLOCK_SIZE * ebpf_i]);
-                        if (ret != 0) {
-                            printf("__wt_row_search: __wt_ebpf_page_swap_func failed\n");
-                            F_CLR(cbt, WT_CBT_EBPF);
-                            goto skip_ebpf;
-                        }
-                        current = descent;
-
-                        page = current->page;
-                        if (page->type == WT_PAGE_ROW_INT) {
-                            WT_INTL_INDEX_GET(session, page, pindex);
-                            indx = ebpf_child_index_arr[ebpf_i];
-                            descent = pindex->index[indx];
-                        } else if (page->type == WT_PAGE_ROW_LEAF) {
-                            goto leaf_only;
-                        } else {
-                            printf("__wt_row_search: unrecognized page type\n");
-                            F_CLR(cbt, WT_CBT_EBPF);
-                            goto skip_ebpf;
-                        }
-                    }
-                    printf("__wt_row_search: caching not terminated\n");
-                    F_CLR(cbt, WT_CBT_EBPF);
-                    goto skip_ebpf;
+                    ebpf_i = 0;
                 }
             }
         }
 skip_ebpf:
-        if ((ret = __wt_page_swap(session, current, descent, read_flags)) == 0) {
+        if (ebpf_page_arr == NULL) {
+            ret = __wt_page_swap(session, current, descent, read_flags);
+        } else {
+            ret = __wt_ebpf_page_swap_func(session, current, descent, read_flags, &ebpf_page_arr[EBPF_BLOCK_SIZE * (ebpf_i++)]);
+            if (ret != 0) {
+                printf("__wt_row_search: __wt_ebpf_page_swap_func failed\n");
+                F_CLR(cbt, WT_CBT_EBPF);
+                F_SET(cbt, WT_CBT_EBPF_ERROR);
+                ebpf_page_arr = NULL;
+                goto skip_ebpf;
+            }
+        }
+        if (ret == 0) {
             current = descent;
             continue;
         }
