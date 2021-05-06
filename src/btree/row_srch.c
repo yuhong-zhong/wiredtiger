@@ -227,13 +227,15 @@ __wt_row_search(WT_CURSOR_BTREE *cbt, WT_ITEM *srch_key, bool insert, WT_REF *le
     uint64_t ebpf_offset, ebpf_size;
     int ebpf_nr_page, ebpf_i;
     uint64_t ebpf_child_index_arr[EBPF_MAX_DEPTH];
-    uint8_t *ebpf_page_arr = NULL;
+    uint8_t *ebpf_page_arr;
 
     session = CUR2S(cbt);
     btree = S2BT(session);
     collator = btree->collator;
     item = cbt->tmp;
     current = NULL;
+
+    ebpf_nr_page = 0;
 
     /*
      * Assert the session and cursor have the right relationship (not search specific, but search is
@@ -333,6 +335,13 @@ restart:
          *
          * Reference the comment above about the 0th key: we continue to special-case it.
          */
+        if (ebpf_nr_page > 0) {
+            indx = ebpf_child_index_arr[ebpf_i];
+            descent = pindex->index[indx];
+            ++ebpf_i;
+            --ebpf_nr_page;
+            goto descend;
+        }
         base = 1;
         limit = pindex->entries - 1;
         if (collator == NULL && srch_key->size <= WT_COMPARE_SHORT_MAXLEN)
@@ -435,7 +444,7 @@ descend:
          * check if the descent is in memory.
          * if not, trigger ebpf traversal
          */
-        if (F_ISSET(cbt, WT_CBT_EBPF) && ebpf_page_arr == NULL) {
+        if (F_ISSET(cbt, WT_CBT_EBPF) && ebpf_nr_page == 0) {
             if (descent->state == WT_REF_DISK
                 && ebpf_get_cell_type(descent->addr) == WT_CELL_ADDR_INT) {
 #ifdef EBPF_DEBUG
@@ -460,7 +469,7 @@ descend:
                                  cbt->dhandle->name, depth, ebpf_ret, ebpf_size);
                     F_CLR(cbt, WT_CBT_EBPF);
                     F_SET(cbt, WT_CBT_EBPF_ERROR);
-                    ebpf_page_arr = NULL;
+                    ebpf_nr_page = 0;
                     goto skip_ebpf;
                 }
 #ifdef EBPF_DEBUG
@@ -486,7 +495,7 @@ descend:
                                  cbt->dhandle->name, depth, ebpf_ret);
                     F_CLR(cbt, WT_CBT_EBPF);
                     F_SET(cbt, WT_CBT_EBPF_ERROR);
-                    ebpf_page_arr = NULL;
+                    ebpf_nr_page = 0;
                     goto skip_ebpf;
                 } else {
 #ifdef FAKE_EBPF
@@ -497,15 +506,15 @@ descend:
             }
         }
 skip_ebpf:
-        if (ebpf_page_arr == NULL) {
+        if (ebpf_nr_page == 0) {
             ret = __wt_page_swap(session, current, descent, read_flags);
         } else {
-            ret = __wt_ebpf_page_swap_func(session, current, descent, read_flags, &ebpf_page_arr[EBPF_BLOCK_SIZE * (ebpf_i++)]);
+            ret = __wt_ebpf_page_swap_func(session, current, descent, read_flags, &ebpf_page_arr[EBPF_BLOCK_SIZE * ebpf_i]);
             if (ret != 0) {
                 printf("__wt_row_search: __wt_ebpf_page_swap_func failed\n");
                 F_CLR(cbt, WT_CBT_EBPF);
                 F_SET(cbt, WT_CBT_EBPF_ERROR);
-                ebpf_page_arr = NULL;
+                ebpf_nr_page = 0;
                 goto skip_ebpf;
             }
         }
