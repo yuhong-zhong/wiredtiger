@@ -136,7 +136,7 @@ int ebpf_lookup_fake(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_buf
                      uint8_t *value_buf, uint64_t value_buf_size, uint8_t *page_data_arr,
                      uint64_t *child_index_arr, int *nr_page);
 
-#define __NR_imposter_pread 442
+#define __NR_imposter_pread 445
 
 int ebpf_lookup_real(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_size, 
                      uint8_t *scratch_buf, uint8_t **page_data_arr_p,
