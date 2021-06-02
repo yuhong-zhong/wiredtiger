@@ -228,6 +228,10 @@ __wt_row_search(WT_CURSOR_BTREE *cbt, WT_ITEM *srch_key, bool insert, WT_REF *le
     int ebpf_nr_page, ebpf_i;
     uint64_t ebpf_child_index_arr[EBPF_MAX_DEPTH];
     uint8_t *ebpf_page_arr;
+    struct timespec start_ts, end_ts;
+    if (clock_gettime(CLOCK_REALTIME, &start_ts) == -1) {
+        printf("clock_gettime failed\n");
+    }
 
     session = CUR2S(cbt);
     btree = S2BT(session);
@@ -642,6 +646,11 @@ leaf_only:
 leaf_match:
         cbt->compare = 0;
         cbt->slot = WT_ROW_SLOT(page, rip);
+        if (clock_gettime(CLOCK_REALTIME, &end_ts) == -1) {
+            printf("clock_gettime failed\n");
+        }
+        atomic_fetch_add(&row_search_time, (end_ts.tv_sec * 1000000000L + end_ts.tv_nsec) - (start_ts.tv_sec * 1000000000L + start_ts.tv_nsec));
+        atomic_fetch_add(&row_search_count, 1);
         return (0);
     }
 

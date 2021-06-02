@@ -25,6 +25,10 @@ __wt_bt_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t
     const WT_PAGE_HEADER *dsk;
     size_t result_len;
     const char *fail_msg;
+    struct timespec start_ts, end_ts;
+    if (clock_gettime(CLOCK_REALTIME, &start_ts) == -1) {
+        printf("clock_gettime failed\n");
+    }
 
     btree = S2BT(session);
     bm = btree->bm;
@@ -143,6 +147,12 @@ corrupt:
             WT_ERR_PANIC(session, ret, "%s: fatal read error: %s", btree->dhandle->name, fail_msg);
         }
     }
+
+    if (clock_gettime(CLOCK_REALTIME, &end_ts) == -1) {
+        printf("clock_gettime failed\n");
+    }
+    atomic_fetch_add(&io_time, (end_ts.tv_sec * 1000000000L + end_ts.tv_nsec) - (start_ts.tv_sec * 1000000000L + start_ts.tv_nsec));
+    atomic_fetch_add(&io_count, 1);
 
 err:
     __wt_scr_free(session, &tmp);

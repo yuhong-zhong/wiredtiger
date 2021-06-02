@@ -54,6 +54,20 @@ __wt_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
     WT_RET(__wt_txn_global_init(session, cfg));
 
     WT_STAT_CONN_SET(session, dh_conn_handle_size, sizeof(WT_DATA_HANDLE));
+
+    atomic_store(&clsm_search_time, 0);
+    atomic_store(&clsm_search_count, 0);
+    atomic_store(&btcur_search_time, 0);
+    atomic_store(&btcur_search_count, 0);
+    atomic_store(&row_search_time, 0);
+    atomic_store(&row_search_count, 0);
+    atomic_store(&page_in_time, 0);
+    atomic_store(&page_in_count, 0);
+    atomic_store(&io_time, 0);
+    atomic_store(&io_count, 0);
+    atomic_store(&raw_io_time, 0);
+    atomic_store(&raw_io_count, 0);
+
     return (0);
 }
 
@@ -72,6 +86,19 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 
     wt_conn = &conn->iface;
     session = conn->default_session;
+
+    printf("clsm_search_time: %ld\n", atomic_load(&clsm_search_time));
+    printf("clsm_search_count: %ld\n", atomic_load(&clsm_search_count));
+    printf("btcur_search_time: %ld\n", atomic_load(&btcur_search_time));
+    printf("btcur_search_count: %ld\n", atomic_load(&btcur_search_count));
+    printf("row_search_time: %ld\n", atomic_load(&row_search_time));
+    printf("row_search_count: %ld\n", atomic_load(&row_search_count));
+    printf("page_in_time: %ld\n", atomic_load(&page_in_time));
+    printf("page_in_count: %ld\n", atomic_load(&page_in_count));
+    printf("io_time: %ld\n", atomic_load(&io_time));
+    printf("io_count: %ld\n", atomic_load(&io_count));
+    printf("raw_io_time: %ld\n", atomic_load(&raw_io_time));
+    printf("raw_io_count: %ld\n", atomic_load(&raw_io_count));
 
     /*
      * The LSM and async services are not shut down in this path (which is called when

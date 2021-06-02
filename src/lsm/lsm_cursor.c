@@ -1226,6 +1226,24 @@ err:
     return (ret);
 }
 
+atomic_long clsm_search_time;
+atomic_long clsm_search_count;
+
+atomic_long btcur_search_time;
+atomic_long btcur_search_count;
+
+atomic_long row_search_time;
+atomic_long row_search_count;
+
+atomic_long page_in_time;
+atomic_long page_in_count;
+
+atomic_long io_time;
+atomic_long io_count;
+
+atomic_long raw_io_time;
+atomic_long raw_io_count;
+
 /*
  * __clsm_search --
  *     WT_CURSOR->search method for the LSM cursor type.
@@ -1236,6 +1254,10 @@ __clsm_search(WT_CURSOR *cursor)
     WT_CURSOR_LSM *clsm;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    struct timespec start_ts, end_ts;
+    if (clock_gettime(CLOCK_REALTIME, &start_ts) == -1) {
+        printf("clock_gettime failed\n");
+    }
 
     clsm = (WT_CURSOR_LSM *)cursor;
 
@@ -1254,6 +1276,11 @@ err:
     if (ret == 0)
         __clsm_deleted_decode(clsm, &cursor->value);
     F_CLR(clsm, WT_CLSM_EBPF | WT_CLSM_EBPF_SUCCESS);
+    if (clock_gettime(CLOCK_REALTIME, &end_ts) == -1) {
+        printf("clock_gettime failed\n");
+    }
+    atomic_fetch_add(&clsm_search_time, (end_ts.tv_sec * 1000000000L + end_ts.tv_nsec) - (start_ts.tv_sec * 1000000000L + start_ts.tv_nsec));
+    atomic_fetch_add(&clsm_search_count, 1);
     API_END_RET(session, ret);
 }
 
