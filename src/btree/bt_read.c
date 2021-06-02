@@ -95,10 +95,6 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     uint32_t page_flags;
     uint8_t previous_state;
     bool timer;
-    struct timespec start_ts, end_ts;
-    if (clock_gettime(CLOCK_REALTIME, &start_ts) == -1) {
-        printf("clock_gettime failed\n");
-    }
 
     time_start = time_stop = 0;
 
@@ -169,12 +165,6 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_ERR(ret);
     tmp.mem = NULL;
 
-    if (clock_gettime(CLOCK_REALTIME, &end_ts) == -1) {
-        printf("clock_gettime failed\n");
-    }
-    atomic_fetch_add(&page_in_time, (end_ts.tv_sec * 1000000000L + end_ts.tv_nsec) - (start_ts.tv_sec * 1000000000L + start_ts.tv_nsec));
-    atomic_fetch_add(&page_in_count, 1);
-
 skip_read:
     switch (previous_state) {
     case WT_REF_DELETED:
@@ -219,6 +209,10 @@ __ebpf_page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, uint8_t 
     uint32_t page_flags;
     uint8_t previous_state;
     bool timer;
+    struct timespec start_ts, end_ts;
+    if (clock_gettime(CLOCK_REALTIME, &start_ts) == -1) {
+        printf("clock_gettime failed\n");
+    }
 
     time_start = time_stop = 0;
 
@@ -288,6 +282,12 @@ __ebpf_page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, uint8_t 
     F_CLR(session, WT_SESSION_INSTANTIATE_PREPARE);
     WT_ERR(ret);
     tmp.mem = NULL;
+
+    if (clock_gettime(CLOCK_REALTIME, &end_ts) == -1) {
+        printf("clock_gettime failed\n");
+    }
+    atomic_fetch_add(&page_in_time, (end_ts.tv_sec * 1000000000L + end_ts.tv_nsec) - (start_ts.tv_sec * 1000000000L + start_ts.tv_nsec));
+    atomic_fetch_add(&page_in_count, 1);
 
 skip_read:
     switch (previous_state) {
