@@ -448,6 +448,24 @@ typedef uint64_t wt_timestamp_t;
 #include "serial.i"
 #include "time.i"
 
+#include <stdatomic.h>
+#include <time.h>
+
+extern atomic_long clsm_search_time;
+extern atomic_long clsm_search_count;
+
+extern atomic_long btcur_search_time;
+extern atomic_long btcur_search_count;
+
+extern atomic_long row_search_time;
+extern atomic_long row_search_count;
+
+extern atomic_long page_in_time;
+extern atomic_long page_in_count;
+
+extern atomic_long io_time;
+extern atomic_long io_count;
+
 #if defined(__cplusplus)
 }
 #endif
