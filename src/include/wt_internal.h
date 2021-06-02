@@ -466,6 +466,9 @@ extern atomic_long page_in_count;
 extern atomic_long io_time;
 extern atomic_long io_count;
 
+extern atomic_long raw_io_time;
+extern atomic_long raw_io_count;
+
 #if defined(__cplusplus)
 }
 #endif

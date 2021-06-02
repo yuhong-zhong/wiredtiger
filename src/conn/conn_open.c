@@ -65,6 +65,8 @@ __wt_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
     atomic_store(&page_in_count, 0);
     atomic_store(&io_time, 0);
     atomic_store(&io_count, 0);
+    atomic_store(&raw_io_time, 0);
+    atomic_store(&raw_io_count, 0);
 
     return (0);
 }
@@ -95,6 +97,8 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
     printf("page_in_count: %ld\n", atomic_load(&page_in_count));
     printf("io_time: %ld\n", atomic_load(&io_time));
     printf("io_count: %ld\n", atomic_load(&io_count));
+    printf("raw_io_time: %ld\n", atomic_load(&raw_io_time));
+    printf("raw_io_count: %ld\n", atomic_load(&raw_io_count));
 
     /*
      * The LSM and async services are not shut down in this path (which is called when

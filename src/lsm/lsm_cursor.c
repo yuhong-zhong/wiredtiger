@@ -1216,6 +1216,9 @@ atomic_long page_in_count;
 atomic_long io_time;
 atomic_long io_count;
 
+atomic_long raw_io_time;
+atomic_long raw_io_count;
+
 /*
  * __clsm_search --
  *     WT_CURSOR->search method for the LSM cursor type.
