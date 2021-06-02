@@ -1238,11 +1238,8 @@ atomic_long row_search_count;
 atomic_long page_in_time;
 atomic_long page_in_count;
 
-atomic_long io_time;
-atomic_long io_count;
-
-atomic_long raw_io_time;
-atomic_long raw_io_count;
+atomic_long bpf_io_time;
+atomic_long bpf_io_count;
 
 /*
  * __clsm_search --
