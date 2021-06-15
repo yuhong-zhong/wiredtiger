@@ -468,6 +468,9 @@ extern atomic_long page_in_count;
 extern atomic_long bpf_io_time;
 extern atomic_long bpf_io_count;
 
+extern atomic_long cache_eviction_time;
+extern atomic_long cache_eviction_count;
+
 #if defined(__cplusplus)
 }
 #endif
