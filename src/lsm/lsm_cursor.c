@@ -1222,6 +1222,8 @@ atomic_long raw_io_count;
 atomic_long cache_eviction_time;
 atomic_long cache_eviction_count;
 
+atomic_long on_disk_tree_access;
+
 /*
  * __clsm_search --
  *     WT_CURSOR->search method for the LSM cursor type.

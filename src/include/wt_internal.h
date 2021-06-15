@@ -472,6 +472,8 @@ extern atomic_long raw_io_count;
 extern atomic_long cache_eviction_time;
 extern atomic_long cache_eviction_count;
 
+extern atomic_long on_disk_tree_access;
+
 #if defined(__cplusplus)
 }
 #endif

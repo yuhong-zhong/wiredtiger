@@ -223,6 +223,7 @@ __wt_row_search(WT_CURSOR_BTREE *cbt, WT_ITEM *srch_key, bool insert, WT_REF *le
     uint32_t base, indx, limit, read_flags;
     int cmp, depth;
     bool append_check, descend_right, done;
+    bool count_on_disk_access = false;
     struct timespec start_ts, end_ts;
     if (clock_gettime(CLOCK_REALTIME, &start_ts) == -1) {
         printf("clock_gettime failed\n");
@@ -429,6 +430,10 @@ descend:
         read_flags = WT_READ_RESTART_OK;
         if (F_ISSET(cbt, WT_CBT_READ_ONCE))
             FLD_SET(read_flags, WT_READ_WONT_NEED);
+        if (descent->state == WT_REF_DISK && !count_on_disk_access) {
+            count_on_disk_access = true;
+            atomic_fetch_add(&on_disk_tree_access, 1);
+        }
         if ((ret = __wt_page_swap(session, current, descent, read_flags)) == 0) {
             current = descent;
             continue;
