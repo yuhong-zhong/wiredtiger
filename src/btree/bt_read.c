@@ -225,6 +225,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     uint8_t current_state;
     int force_attempts;
     bool busy, cache_work, evict_skip, stalled, wont_need;
+    struct timespec start_ts, end_ts;
 
     btree = S2BT(session);
 
@@ -264,9 +265,17 @@ read:
              * The page isn't in memory, read it. If this thread respects the cache size, check for
              * space in the cache.
              */
+            if (clock_gettime(CLOCK_REALTIME, &start_ts) == -1) {
+                printf("clock_gettime failed\n");
+            }
             if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
                 WT_RET(__wt_cache_eviction_check(
                   session, true, !F_ISSET(session->txn, WT_TXN_HAS_ID), NULL));
+            if (clock_gettime(CLOCK_REALTIME, &end_ts) == -1) {
+       	        printf("clock_gettime failed\n");
+       	    }
+            atomic_fetch_add(&cache_eviction_time, (end_ts.tv_sec * 1000000000L + end_ts.tv_nsec) - (start_ts.tv_sec * 1000000000L + start_ts.tv_nsec));
+            atomic_fetch_add(&cache_eviction_count, 1);
             WT_RET(__page_read(session, ref, flags));
 
             /* We just read a page, don't evict it before we have a chance to use it. */

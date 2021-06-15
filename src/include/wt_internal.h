@@ -469,6 +469,9 @@ extern atomic_long io_count;
 extern atomic_long raw_io_time;
 extern atomic_long raw_io_count;
 
+extern atomic_long cache_eviction_time;
+extern atomic_long cache_eviction_count;
+
 #if defined(__cplusplus)
 }
 #endif
