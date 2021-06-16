@@ -432,6 +432,7 @@ descend:
             FLD_SET(read_flags, WT_READ_WONT_NEED);
         if (descent->state == WT_REF_DISK && !count_on_disk_access) {
             count_on_disk_access = true;
+            cbt->has_io = true;
             atomic_fetch_add(&on_disk_tree_access, 1);
         }
         if ((ret = __wt_page_swap(session, current, descent, read_flags)) == 0) {

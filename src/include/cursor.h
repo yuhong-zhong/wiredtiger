@@ -82,6 +82,8 @@ struct __wt_cursor_backup {
 struct __wt_cursor_btree {
     WT_CURSOR iface;
 
+    bool has_io;
+
     WT_DATA_HANDLE *dhandle; /* Data handle for the btree */
 
     /*

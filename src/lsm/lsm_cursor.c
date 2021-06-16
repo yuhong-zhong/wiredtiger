@@ -1145,6 +1145,7 @@ __clsm_lookup(WT_CURSOR_LSM *clsm, WT_ITEM *value)
     WT_SESSION_IMPL *session;
     u_int i;
     bool have_hash;
+    WT_CURSOR_BTREE *cbt;
 
     c = NULL;
     cursor = &clsm->iface;
@@ -1170,12 +1171,20 @@ __clsm_lookup(WT_CURSOR_LSM *clsm, WT_ITEM *value)
                 WT_LSM_TREE_STAT_INCR(session, clsm->lsm_tree->bloom_hit);
         }
         c->set_key(c, &cursor->key);
+        cbt = (WT_CURSOR_BTREE *) c;
+        cbt->has_io = false;
         if ((ret = c->search(c)) == 0) {
+            if (cbt->has_io) {
+                atomic_fetch_add(&any_on_disk_tree_access, 1);
+            }
             WT_ERR(c->get_key(c, &cursor->key));
             WT_ERR(c->get_value(c, value));
             if (__clsm_deleted(clsm, value))
                 ret = WT_NOTFOUND;
             goto done;
+        }
+        if (cbt->has_io) {
+            atomic_fetch_add(&any_on_disk_tree_access, 1);
         }
         WT_ERR_NOTFOUND_OK(ret, false);
         F_CLR(c, WT_CURSTD_KEY_SET);
@@ -1223,6 +1232,7 @@ atomic_long cache_eviction_time;
 atomic_long cache_eviction_count;
 
 atomic_long on_disk_tree_access;
+atomic_long any_on_disk_tree_access;
 
 /*
  * __clsm_search --
