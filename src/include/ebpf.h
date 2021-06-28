@@ -139,7 +139,7 @@ int ebpf_lookup_fake(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_buf
 #define __NR_imposter_pread 445
 
 int ebpf_lookup_real(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_size, 
-                     uint8_t *scratch_buf, uint8_t **page_data_arr_p,
+                     uint8_t *data_buf, uint8_t *scratch_buf, uint8_t **page_data_arr_p,
                      uint64_t *child_index_arr, int *nr_page);
 
 struct wt_ebpf_scratch {
