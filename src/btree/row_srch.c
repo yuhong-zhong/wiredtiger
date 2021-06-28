@@ -492,7 +492,7 @@ descend:
 #else
                 ebpf_lookup_real(((WT_FILE_HANDLE_POSIX *)btree->bm->block->fh->handle)->fd, 
                                  ebpf_offset, (uint8_t *)srch_key->data, srch_key->size, 
-                                 cbt->ebpf_buffer, &ebpf_page_arr, ebpf_child_index_arr, &ebpf_nr_page);
+                                 cbt->ebpf_buffer, cbt->ebpf_extra_buffer, &ebpf_page_arr, ebpf_child_index_arr, &ebpf_nr_page);
 #endif
                 if (ebpf_ret < 0) {
                     __wt_verbose(session, WT_VERB_LSM, "ebpf_lookup error - uri: %s, depth: %d, ret: %d", 
