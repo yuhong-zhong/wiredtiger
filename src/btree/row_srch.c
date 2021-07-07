@@ -223,8 +223,9 @@ __wt_row_search(WT_CURSOR_BTREE *cbt, WT_ITEM *srch_key, bool insert, WT_REF *le
     uint32_t base, indx, limit, read_flags;
     int cmp, depth;
     bool append_check, descend_right, done;
+    WT_ADDR_COPY ebpf_addr;
     int ebpf_ret;
-    uint64_t ebpf_offset, ebpf_size;
+    uint64_t ebpf_offset, ebpf_size, ebpf_checksum;
     int ebpf_nr_page, ebpf_i;
     uint64_t ebpf_child_index_arr[EBPF_MAX_DEPTH];
     uint8_t *ebpf_page_arr;
@@ -451,49 +452,33 @@ descend:
         if (F_ISSET(cbt, WT_CBT_EBPF) && ebpf_nr_page == 0) {
             if (descent->state == WT_REF_DISK
                 && ebpf_get_cell_type(descent->addr) == WT_CELL_ADDR_INT) {
-#ifdef EBPF_DEBUG
-                WT_ADDR_COPY _addr;
-                bool _copy_ret;
-                int _convert_ret;
-                uint64_t _offset;
-                uint32_t _size, _checksum;
-                _copy_ret = __wt_ref_addr_copy(session, descent, &_addr);
-                if (!_copy_ret) {
-                    printf("__wt_ref_addr_copy failed\n");
-                }
-                _convert_ret = __wt_block_buffer_to_addr(btree->bm->block, _addr.addr, &_offset, &_size, &_checksum);
-                if (_convert_ret) {
-                    printf("__block_buffer_to_addr failed\n");
-                }
-#endif
-                /* parse wt cell to get file offset & size */
-                ebpf_ret = ebpf_parse_cell_addr((uint8_t **)&descent->addr, &ebpf_offset, &ebpf_size, false);
-                if (ebpf_ret < 0 || ebpf_size != EBPF_BLOCK_SIZE) {
-                    __wt_verbose(session, WT_VERB_LSM, "ebpf_parse_cell_addr_int error - uri: %s, depth: %d, ret: %d, size: %ld", 
-                                 cbt->dhandle->name, depth, ebpf_ret, ebpf_size);
+                bool copy_ret;
+                int convert_ret;
+                copy_ret = __wt_ref_addr_copy(session, descent, &ebpf_addr);
+                if (!copy_ret) {
+                    __wt_verbose(session, WT_VERB_LSM, "__wt_ref_addr_copy error - uri: %s, depth: %d", 
+                                 cbt->dhandle->name, depth);
                     F_CLR(cbt, WT_CBT_EBPF);
                     F_SET(cbt, WT_CBT_EBPF_ERROR);
                     ebpf_nr_page = 0;
                     goto skip_ebpf;
                 }
-#ifdef EBPF_DEBUG
-                if (ebpf_offset != _offset || ebpf_size != _size) {
-                    printf("ebpf_parse_cell_addr_int inconsistent\n");
+                convert_ret = __wt_block_buffer_to_addr(btree->bm->block, ebpf_addr.addr, &ebpf_offset, &ebpf_size, &ebpf_checksum);
+                if (convert_ret) {
+                    __wt_verbose(session, WT_VERB_LSM, "__wt_block_buffer_to_addr error - uri: %s, depth: %d, ret: %d",
+                                 cbt->dhandle->name, depth, convert_ret);
+                    F_CLR(cbt, WT_CBT_EBPF);
+                    F_SET(cbt, WT_CBT_EBPF_ERROR);
+                    ebpf_nr_page = 0;
+                    goto skip_ebpf;
                 }
-#endif
                 /*
                  * start ebpf traversal
                  */
                 ebpf_ret = 
-#ifdef FAKE_EBPF
-                ebpf_lookup_fake(((WT_FILE_HANDLE_POSIX *)btree->bm->block->fh->handle)->fd, 
-                                 ebpf_offset, (uint8_t *)srch_key->data, srch_key->size, 
-                                 cbt->ebpf_buffer, EBPF_BUFFER_SIZE, cbt->ebpf_extra_buffer, ebpf_child_index_arr, &ebpf_nr_page);
-#else
                 ebpf_lookup_real(((WT_FILE_HANDLE_POSIX *)btree->bm->block->fh->handle)->fd, 
                                  ebpf_offset, (uint8_t *)srch_key->data, srch_key->size, 
                                  cbt->ebpf_buffer, cbt->ebpf_extra_buffer, &ebpf_page_arr, ebpf_child_index_arr, &ebpf_nr_page);
-#endif
                 if (ebpf_ret < 0) {
                     __wt_verbose(session, WT_VERB_LSM, "ebpf_lookup error - uri: %s, depth: %d, ret: %d", 
                                  cbt->dhandle->name, depth, ebpf_ret);
@@ -502,9 +487,6 @@ descend:
                     ebpf_nr_page = 0;
                     goto skip_ebpf;
                 } else {
-#ifdef FAKE_EBPF
-                    ebpf_page_arr = cbt->ebpf_extra_buffer;
-#endif
                     ebpf_i = 0;
                 }
             }

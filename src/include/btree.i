@@ -1783,7 +1783,12 @@ __wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32
 
 int __wt_ebpf_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, uint8_t *ebpf_data);
 
-static inline int __wt_ebpf_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32_t flags, uint8_t *ebpf_data)
+static inline int __wt_ebpf_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32_t flags, uint8_t *ebpf_data
+#ifdef HAVE_DIAGNOSTIC
+  ,
+  const char *func, int line
+#endif
+  )
 {
     WT_DECL_RET;
     bool acquired;
@@ -1802,7 +1807,12 @@ static inline int __wt_ebpf_page_swap_func(WT_SESSION_IMPL *session, WT_REF *hel
         return (0);
 
     /* Get the wanted page. */
-    ret = __wt_ebpf_page_in_func(session, want, flags, ebpf_data);
+    ret = __wt_ebpf_page_in_func(session, want, flags, ebpf_data
+#ifdef HAVE_DIAGNOSTIC
+      ,
+      func, line
+#endif
+      );
 
     /*
      * Expected failures: page not found or restart. Our callers list the errors they're expecting
@@ -1839,6 +1849,25 @@ static inline int __wt_ebpf_page_swap_func(WT_SESSION_IMPL *session, WT_REF *hel
         WT_RET_MSG(session, EINVAL, "page-release WT_RESTART error mapped to EINVAL");
 
     return (ret);
+}
+
+/*
+ * __wt_page_swap_func --
+ *     Swap one page's hazard pointer for another one when hazard pointer coupling up/down the tree.
+ */
+static inline int
+__wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32_t flags
+#ifdef HAVE_DIAGNOSTIC
+  ,
+  const char *func, int line
+#endif
+  )
+{
+    return __wt_ebpf_page_swap_func(session, held, want, flags, NULL
+        #ifdef HAVE_DIAGNOSTIC
+          , func, line
+        #endif
+    );
 }
 
 /*
