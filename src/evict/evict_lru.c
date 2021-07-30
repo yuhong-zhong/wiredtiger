@@ -597,6 +597,8 @@ __evict_update_work(WT_SESSION_IMPL *session)
     bytes_inuse = __wt_cache_bytes_inuse(cache);
     if (__wt_eviction_clean_needed(session, NULL))
         LF_SET(WT_CACHE_EVICT_CLEAN | WT_CACHE_EVICT_CLEAN_HARD);
+    else if ((bytes_inuse + __wt_cache_bytes_plus_overhead(cache, cache->bytes_reserved)) > (trigger * bytes_max) / 100)
+        LF_SET(WT_CACHE_EVICT_CLEAN | WT_CACHE_EVICT_DIRTY | WT_CACHE_EVICT_UPDATES);
     else if (bytes_inuse > (target * bytes_max) / 100)
         LF_SET(WT_CACHE_EVICT_CLEAN);
 

@@ -229,6 +229,7 @@ __wt_row_search(WT_CURSOR_BTREE *cbt, WT_ITEM *srch_key, bool insert, WT_REF *le
     uint64_t ebpf_child_index_arr[EBPF_MAX_DEPTH];
     uint8_t *ebpf_page_arr;
     struct timespec start_ts, end_ts;
+    WT_CACHE *cache;
     if (clock_gettime(CLOCK_REALTIME, &start_ts) == -1) {
         printf("clock_gettime failed\n");
     }
@@ -238,6 +239,7 @@ __wt_row_search(WT_CURSOR_BTREE *cbt, WT_ITEM *srch_key, bool insert, WT_REF *le
     collator = btree->collator;
     item = cbt->tmp;
     current = NULL;
+    cache = S2C(session)->cache;
 
     ebpf_nr_page = 0;
 
@@ -481,6 +483,8 @@ descend:
                     printf("ebpf_parse_cell_addr_int inconsistent\n");
                 }
 #endif
+                (void)__wt_atomic_add64(&cache->bytes_reserved, 1024 * 1024);
+                __wt_evict_server_wake(session);
                 /*
                  * start ebpf traversal
                  */
@@ -494,6 +498,7 @@ descend:
                                  ebpf_offset, (uint8_t *)srch_key->data, srch_key->size, 
                                  cbt->ebpf_buffer, cbt->ebpf_extra_buffer, &ebpf_page_arr, ebpf_child_index_arr, &ebpf_nr_page);
 #endif
+                __wt_cache_decr_check_uint64(session, &cache->bytes_reserved, 1024 * 1024, "WT_CACHE.bytes_reserved");
                 if (ebpf_ret < 0) {
                     __wt_verbose(session, WT_VERB_LSM, "ebpf_lookup error - uri: %s, depth: %d, ret: %d", 
                                  cbt->dhandle->name, depth, ebpf_ret);
