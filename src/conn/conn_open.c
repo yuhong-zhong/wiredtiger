@@ -65,6 +65,8 @@ __wt_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
     atomic_store(&page_in_count, 0);
     atomic_store(&bpf_io_time, 0);
     atomic_store(&bpf_io_count, 0);
+    atomic_store(&raw_io_time, 0);
+    atomic_store(&raw_io_count, 0);
     atomic_store(&cache_eviction_time, 0);
     atomic_store(&cache_eviction_count, 0);
 
@@ -97,6 +99,8 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
     printf("page_in_count: %ld\n", atomic_load(&page_in_count));
     printf("bpf_io_time: %ld\n", atomic_load(&bpf_io_time));
     printf("bpf_io_count: %ld\n", atomic_load(&bpf_io_count));
+    printf("raw_io_time: %ld\n", atomic_load(&raw_io_time));
+    printf("raw_io_count: %ld\n", atomic_load(&raw_io_count));
     printf("cache_eviction_time: %ld\n", atomic_load(&cache_eviction_time));
     printf("cache_eviction_count: %ld\n", atomic_load(&cache_eviction_count));
 
