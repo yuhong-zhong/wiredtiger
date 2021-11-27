@@ -2348,7 +2348,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     char version[64];
 
     char *bpf_env;
-    int bpt_ret;
+    int bpf_ret;
     struct bpf_object *obj;
 
     bpf_env = getenv("WT_BPF_PATH");
