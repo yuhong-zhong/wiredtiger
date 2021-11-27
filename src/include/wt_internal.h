@@ -19,6 +19,10 @@ extern "C" {
 #include "wiredtiger_config.h"
 #include "wiredtiger_ext.h"
 
+#include <linux/bpf.h>
+#include <bpf/bpf.h>
+#include <bpf/libbpf.h>
+
 /*******************************************
  * WiredTiger system include files.
  *******************************************/

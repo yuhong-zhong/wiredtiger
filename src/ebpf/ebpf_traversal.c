@@ -539,6 +539,8 @@ int ebpf_lookup_fake(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_buf
     return -EBPF_EINVAL;
 }
 
+int bpf_fd;
+
 int ebpf_lookup_real(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_size, 
                      uint8_t *data_buf, uint8_t *scratch_buf, uint8_t **page_data_arr_p,
                      uint64_t *child_index_arr, int *nr_page) {
@@ -561,7 +563,7 @@ int ebpf_lookup_real(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_siz
     memcpy(scratch->key, key_buf, key_size);
 
     /* call xrp read */
-    ret = syscall(__NR_imposter_pread, fd, data_buf, scratch_buf, EBPF_BLOCK_SIZE, offset);
+    ret = syscall(__NR_imposter_pread, fd, data_buf, EBPF_BLOCK_SIZE, offset, bpf_fd, scratch_buf);
     if (ret != EBPF_BLOCK_SIZE) {
         printf("ebpf_lookup: imposter pread failed, ret %d\n", ret);
         return ret;
