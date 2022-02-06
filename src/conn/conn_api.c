@@ -2356,7 +2356,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         printf("User must provide WT_BPF_PATH\n");
         exit(1);
     }
-    bpf_ret = bpf_prog_load(bpf_env, BPF_PROG_TYPE_IMPOSTER, &obj, &bpf_fd);
+    bpf_ret = bpf_prog_load(bpf_env, BPF_PROG_TYPE_XRP, &obj, &bpf_fd);
     if (bpf_ret) {
         printf("Failed to load BPF program\n");
         exit(1);

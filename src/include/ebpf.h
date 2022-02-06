@@ -1,11 +1,9 @@
 /*
  * Config definitions
  */
-// #define FAKE_EBPF
-// #define EBPF_DEBUG
 
-#define EBPF_BUFFER_SIZE 4096
-#define EBPF_EXTRA_BUFFER_SIZE 8192
+#define EBPF_DATA_BUFFER_SIZE 4096
+#define EBPF_SCRATCH_BUFFER_SIZE 4096
 #define EBPF_BLOCK_SIZE 512
 /* page is always block size */
 #define EBPF_MAX_DEPTH 6
@@ -108,39 +106,18 @@ struct ebpf_block_header {
 /* Extract bits <start> to <end> from a value (counting from LSB == 0). */
 #define GET_BITS(x, start, end) (((uint64_t)(x) & ((1U << (start)) - 1U)) >> (end))
 
-int ebpf_lex_compare(uint8_t *key_1, uint64_t key_len_1,
-                     uint8_t *key_2, uint64_t key_len_2);
 int ebpf_unpack_posint(uint8_t **pp, uint64_t *retp);
 int ebpf_vunpack_uint(uint8_t **pp, uint64_t *xp);
 int ebpf_addr_to_offset(uint8_t *addr, uint64_t *offset, uint64_t *size);
 int ebpf_get_cell_type(uint8_t *cell);
 int ebpf_parse_cell_addr(uint8_t **cellp, uint64_t *offset, uint64_t *size, 
                          bool update_pointer);
-int ebpf_parse_cell_key(uint8_t **cellp, uint8_t **key, uint64_t *key_size, 
-                        bool update_pointer);
-int ebpf_parse_cell_short_key(uint8_t **cellp, uint8_t **key, uint64_t *key_size, 
-                              bool update_pointer);
-int ebpf_parse_cell_value(uint8_t **cellp, uint8_t **value, uint64_t *value_size, 
-                          bool update_pointer);
-int ebpf_parse_cell_short_value(uint8_t **cellp, uint8_t **value, uint64_t *value_size, 
-                                bool update_pointer);
-int ebpf_get_page_type(uint8_t *page_image);
-int ebpf_search_int_page(uint8_t *page_image, 
-                         uint8_t *user_key_buf, uint64_t user_key_size,
-                         uint64_t *descent_offset, uint64_t *descent_size, uint64_t *descent_index);
-int ebpf_search_leaf_page(uint8_t *page_image, 
-                          uint8_t *user_key_buf, uint64_t user_key_size,
-                          uint8_t **value_buf, uint64_t *value_size, uint64_t *descent_index);
-void ebpf_dump_page(uint8_t *page_image, uint64_t page_offset);
-int ebpf_lookup_fake(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_buf_size, 
-                     uint8_t *value_buf, uint64_t value_buf_size, uint8_t *page_data_arr,
-                     uint64_t *child_index_arr, int *nr_page);
 
-#define __NR_imposter_pread 445
+#define __NR_read_xrp 445
 
-int ebpf_lookup_real(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_size, 
-                     uint8_t *data_buf, uint8_t *scratch_buf, uint8_t **page_data_arr_p,
-                     uint64_t *child_index_arr, int *nr_page);
+int ebpf_lookup(int fd, uint64_t offset, uint8_t *key_buf, uint64_t key_size, 
+                uint8_t *data_buf, uint8_t *scratch_buf, uint8_t **page_data_arr_p,
+                uint64_t *child_index_arr, int *nr_page);
 
 struct wt_ebpf_scratch {
     uint64_t key_size;
@@ -153,12 +130,4 @@ struct wt_ebpf_scratch {
 
     int32_t nr_page;
     uint64_t descent_index_arr[EBPF_MAX_DEPTH];
-};
-
-struct bpf_imposter_kern {
-	int32_t done;
-	uint64_t next_addr[16];
-	uint64_t size[16];
-	char *data;
-	char *scratch;
 };

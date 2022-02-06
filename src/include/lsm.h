@@ -52,8 +52,8 @@ struct __wt_cursor_lsm {
     WT_CURSOR iface;
 
     WT_LSM_TREE *lsm_tree;
-    uint8_t *ebpf_buffer;
-    uint8_t *ebpf_extra_buffer;
+    uint8_t *ebpf_data_buffer;
+    uint8_t *ebpf_scratch_buffer;
 
     uint64_t dsk_gen;
 

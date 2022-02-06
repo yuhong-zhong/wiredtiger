@@ -1713,7 +1713,7 @@ __wt_split_descent_race(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX *sa
  *     Swap one page's hazard pointer for another one when hazard pointer coupling up/down the tree.
  */
 static inline int
-__wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32_t flags
+___wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32_t flags, uint8_t *ebpf_data
 #ifdef HAVE_DIAGNOSTIC
   ,
   const char *func, int line
@@ -1737,7 +1737,7 @@ __wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32
         return (0);
 
     /* Get the wanted page. */
-    ret = __wt_page_in_func(session, want, flags
+    ret = ___wt_page_in_func(session, want, flags, ebpf_data
 #ifdef HAVE_DIAGNOSTIC
       ,
       func, line
@@ -1781,64 +1781,20 @@ __wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32
     return (ret);
 }
 
-int __wt_ebpf_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, uint8_t *ebpf_data);
-
-static inline int __wt_ebpf_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32_t flags, uint8_t *ebpf_data)
+static inline int
+__wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32_t flags
+#ifdef HAVE_DIAGNOSTIC
+  ,
+  const char *func, int line
+#endif
+  )
 {
-    WT_DECL_RET;
-    bool acquired;
-
-    /*
-     * This function is here to simplify the error handling during hazard
-     * pointer coupling so we never leave a hazard pointer dangling.  The
-     * assumption is we're holding a hazard pointer on "held", and want to
-     * acquire a hazard pointer on "want", releasing the hazard pointer on
-     * "held" when we're done.
-     *
-     * When walking the tree, we sometimes swap to the same page. Fast-path
-     * that to avoid thinking about error handling.
-     */
-    if (held == want)
-        return (0);
-
-    /* Get the wanted page. */
-    ret = __wt_ebpf_page_in_func(session, want, flags, ebpf_data);
-
-    /*
-     * Expected failures: page not found or restart. Our callers list the errors they're expecting
-     * to handle.
-     */
-    if (LF_ISSET(WT_READ_NOTFOUND_OK) && ret == WT_NOTFOUND)
-        return (WT_NOTFOUND);
-    if (LF_ISSET(WT_READ_RESTART_OK) && ret == WT_RESTART)
-        return (WT_RESTART);
-
-    /* Discard the original held page on either success or error. */
-    acquired = ret == 0;
-    WT_TRET(__wt_page_release(session, held, flags));
-
-    /* Fast-path expected success. */
-    if (ret == 0)
-        return (0);
-
-    /*
-     * If there was an error at any point that our caller isn't prepared to handle, discard any page
-     * we acquired.
-     */
-    if (acquired)
-        WT_TRET(__wt_page_release(session, want, flags));
-
-    /*
-     * If we're returning an error, don't let it be one our caller expects to handle as returned by
-     * page-in: the expectation includes the held page not having been released, and that's not the
-     * case.
-     */
-    if (LF_ISSET(WT_READ_NOTFOUND_OK) && ret == WT_NOTFOUND)
-        WT_RET_MSG(session, EINVAL, "page-release WT_NOTFOUND error mapped to EINVAL");
-    if (LF_ISSET(WT_READ_RESTART_OK) && ret == WT_RESTART)
-        WT_RET_MSG(session, EINVAL, "page-release WT_RESTART error mapped to EINVAL");
-
-    return (ret);
+    return ___wt_page_swap_func(session, held, want, flags, NULL
+#ifdef HAVE_DIAGNOSTIC
+  ,
+  func, line
+#endif
+    );
 }
 
 /*
