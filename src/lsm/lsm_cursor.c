@@ -1822,7 +1822,7 @@ __wt_clsm_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, cons
         WT_ERR(__wt_clsm_open_bulk(clsm, cfg));
 
     clsm->ebpf_data_buffer = aligned_alloc(EBPF_DATA_BUFFER_SIZE, EBPF_DATA_BUFFER_SIZE);
-    if (!clsm->ebpf_buffer) {
+    if (!clsm->ebpf_data_buffer) {
         printf("failed to allocate ebpf_data_buffer for lsm cursor\n");
         goto err;
     }
